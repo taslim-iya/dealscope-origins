@@ -9,7 +9,6 @@ import {
   Search,
   ExternalLink,
   Loader2,
-  LogOut,
   Database,
   RefreshCw,
 } from "lucide-react";
@@ -26,6 +25,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { DashboardHeader } from "@/components/layout/DashboardHeader";
 
 interface OnMarketDeal {
   id: string;
@@ -242,23 +242,10 @@ export default function OnMarket() {
   // Authenticated dashboard view
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="container-wide h-16 flex items-center justify-between">
-          <Link to="/" className="text-lg font-semibold text-foreground">
-            DealScope
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {profile?.email || user.email}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Log out
-            </Button>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader 
+        email={profile?.email || user?.email} 
+        onSignOut={handleSignOut} 
+      />
 
       {/* Sub-header */}
       <div className="border-b border-border bg-secondary/30">
