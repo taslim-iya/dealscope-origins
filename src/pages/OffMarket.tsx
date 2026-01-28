@@ -42,7 +42,7 @@ export default function OffMarket() {
               Live
             </div>
             <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-              Off-Market Origination
+              Deal Sourcing
             </h1>
             <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
               Buyer-mandated acquisition research. Define your criteria, receive qualified 
