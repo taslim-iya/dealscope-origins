@@ -67,17 +67,40 @@ export default function OnMarket() {
   const [searchQuery, setSearchQuery] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [scraping, setScraping] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingRole, setCheckingRole] = useState(true);
 
-  // If not logged in, show the public "Coming Soon" view
-  const isAuthenticated = !authLoading && user;
+  // Check if user has admin role
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user) {
+        setCheckingRole(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      setIsAdmin(!!data);
+      setCheckingRole(false);
+    };
+
+    if (!authLoading) {
+      checkAdminRole();
+    }
+  }, [user, authLoading]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!checkingRole && isAdmin) {
       fetchDeals();
-    } else {
+    } else if (!checkingRole) {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAdmin, checkingRole]);
 
   const fetchDeals = async () => {
     if (!user) return;
@@ -139,8 +162,19 @@ export default function OnMarket() {
     return matchesSearch && matchesIndustry;
   });
 
-  // Public view for non-authenticated users
-  if (!isAuthenticated) {
+  // Show loading while checking role
+  if (authLoading || checkingRole) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </Layout>
+    );
+  }
+
+  // Show Coming Soon for non-admins (including authenticated non-admin users)
+  if (!isAdmin) {
     return (
       <Layout>
         {/* Hero */}
