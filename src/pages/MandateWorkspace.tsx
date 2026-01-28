@@ -40,7 +40,7 @@ interface Company {
   asset_band: string | null;
   status: string | null;
   revenue: number | null;
-  total_assets: number | null;
+  profit_before_tax: number | null;
   net_assets: number | null;
 }
 
@@ -83,7 +83,7 @@ export default function MandateWorkspace() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortColumn, setSortColumn] = useState<"revenue" | "total_assets" | "net_assets" | "status" | null>(null);
+  const [sortColumn, setSortColumn] = useState<"revenue" | "profit_before_tax" | "net_assets" | "status" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const isPaidUser = profile?.is_paid ?? false;
@@ -98,13 +98,13 @@ export default function MandateWorkspace() {
       return;
     }
 
-    const headers = ["Company Name", "Industry", "Location", "Revenue", "Total Assets", "Net Assets", "Status"];
+    const headers = ["Company Name", "Industry", "Location", "Revenue", "Profit Before Tax", "Net Assets", "Status"];
     const rows = filteredAndSortedCompanies.map((company) => [
       company.company_name,
       company.industry || "",
       company.geography || "",
       company.revenue?.toString() || "",
-      company.total_assets?.toString() || "",
+      company.profit_before_tax?.toString() || "",
       company.net_assets?.toString() || "",
       company.status || "new",
     ]);
@@ -181,7 +181,7 @@ export default function MandateWorkspace() {
     navigate("/");
   };
 
-  const handleSort = (column: "revenue" | "total_assets" | "net_assets" | "status") => {
+  const handleSort = (column: "revenue" | "profit_before_tax" | "net_assets" | "status") => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
@@ -190,7 +190,7 @@ export default function MandateWorkspace() {
     }
   };
 
-  const getSortIcon = (column: "revenue" | "total_assets" | "net_assets" | "status") => {
+  const getSortIcon = (column: "revenue" | "profit_before_tax" | "net_assets" | "status") => {
     if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
     return sortDirection === "asc" 
       ? <ArrowUp className="h-3 w-3 ml-1" /> 
@@ -418,10 +418,10 @@ export default function MandateWorkspace() {
                       </th>
                       <th 
                         className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell cursor-pointer hover:text-foreground select-none"
-                        onClick={() => handleSort("total_assets")}
+                        onClick={() => handleSort("profit_before_tax")}
                       >
                         <span className="inline-flex items-center justify-end">
-                          Total Assets {getSortIcon("total_assets")}
+                          PBT {getSortIcon("profit_before_tax")}
                         </span>
                       </th>
                       <th 
@@ -466,7 +466,7 @@ export default function MandateWorkspace() {
                           {company.revenue ? formatCurrency(company.revenue) : company.revenue_band || "—"}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-muted-foreground hidden md:table-cell">
-                          {company.total_assets ? formatCurrency(company.total_assets) : company.asset_band || "—"}
+                          {company.profit_before_tax ? formatCurrency(company.profit_before_tax) : "—"}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-muted-foreground hidden md:table-cell">
                           {company.net_assets ? formatCurrency(company.net_assets) : "—"}
