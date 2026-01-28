@@ -1,4 +1,8 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Shield } from "lucide-react";
 
 const footerLinks = {
   product: [
@@ -18,6 +22,26 @@ const footerLinks = {
 };
 
 export function Footer() {
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      setIsAdmin(!!data);
+    };
+    checkAdminRole();
+  }, [user]);
+
   return (
     <footer className="border-t border-border bg-secondary/30">
       <div className="container-wide py-12 md:py-16">
@@ -80,14 +104,25 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-border">
-          <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
-            DealScope provides buyer-mandated research and origination support only. 
-            We do not act as a broker, agent, or intermediary and do not participate in transactions.
-          </p>
-          <p className="mt-4 text-xs text-muted-foreground">
-            © {new Date().getFullYear()} DealScope. All rights reserved.
-          </p>
+        <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-3xl">
+              DealScope provides buyer-mandated research and origination support only. 
+              We do not act as a broker, agent, or intermediary and do not participate in transactions.
+            </p>
+            <p className="mt-4 text-xs text-muted-foreground">
+              © {new Date().getFullYear()} DealScope. All rights reserved.
+            </p>
+          </div>
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Shield className="h-3.5 w-3.5" />
+              Admin
+            </Link>
+          )}
         </div>
       </div>
     </footer>
