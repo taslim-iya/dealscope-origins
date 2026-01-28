@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, Lock } from "lucide-react";
+import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, Lock, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { MandateOutreachTab } from "@/components/outreach/MandateOutreachTab";
 
 interface Mandate {
   id: string;
@@ -340,159 +342,174 @@ export default function MandateWorkspace() {
       {/* Main Content */}
       <main className="flex-1 py-6">
         <div className="container-wide">
-          {companies.length === 0 ? (
-            // Empty state
-            <div className="card-elevated p-12 text-center">
-              <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="font-medium text-foreground mb-1">No companies yet</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Companies matching your mandate criteria will appear here once sourced. 
-                Your mandate is currently in <strong>{mandate.status}</strong> status.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Filters */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search companies..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="max-w-xs"
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statusOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    variant={isPaidUser ? "outline" : "secondary"}
-                    size="sm"
-                    onClick={handleExportCSV}
-                    className="gap-2"
-                  >
-                    {isPaidUser ? (
-                      <Download className="h-4 w-4" />
-                    ) : (
-                      <Lock className="h-4 w-4" />
-                    )}
-                    Export CSV
-                  </Button>
-                </div>
-              </div>
+          <Tabs defaultValue="companies" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="companies" className="gap-2">
+                <FileText className="h-4 w-4" />
+                Companies
+              </TabsTrigger>
+              <TabsTrigger value="outreach" className="gap-2">
+                <Mail className="h-4 w-4" />
+                Outreach
+              </TabsTrigger>
+            </TabsList>
 
-              {/* Companies Table */}
-              <div className="table-container border border-border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b border-border">
-                    <tr>
-                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
-                        Company
-                      </th>
-                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">
-                        Industry
-                      </th>
-                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
-                        Location
-                      </th>
-                      <th 
-                        className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 cursor-pointer hover:text-foreground select-none"
-                        onClick={() => handleSort("revenue")}
+            <TabsContent value="companies">
+              {companies.length === 0 ? (
+                // Empty state
+                <div className="card-elevated p-12 text-center">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <h3 className="font-medium text-foreground mb-1">No companies yet</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Companies matching your mandate criteria will appear here once sourced. 
+                    Your mandate is currently in <strong>{mandate.status}</strong> status.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Filters */}
+                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Search companies..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="max-w-xs"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4 text-muted-foreground" />
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="w-[160px]">
+                            <SelectValue placeholder="Filter by status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        variant={isPaidUser ? "outline" : "secondary"}
+                        size="sm"
+                        onClick={handleExportCSV}
+                        className="gap-2"
                       >
-                        <span className="inline-flex items-center justify-end">
-                          Revenue {getSortIcon("revenue")}
-                        </span>
-                      </th>
-                      <th 
-                        className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell cursor-pointer hover:text-foreground select-none"
-                        onClick={() => handleSort("profit_before_tax")}
-                      >
-                        <span className="inline-flex items-center justify-end">
-                          PBT {getSortIcon("profit_before_tax")}
-                        </span>
-                      </th>
-                      <th 
-                        className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell cursor-pointer hover:text-foreground select-none"
-                        onClick={() => handleSort("net_assets")}
-                      >
-                        <span className="inline-flex items-center justify-end">
-                          Net Assets {getSortIcon("net_assets")}
-                        </span>
-                      </th>
-                      <th 
-                        className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 w-24 cursor-pointer hover:text-foreground select-none"
-                        onClick={() => handleSort("status")}
-                      >
-                        <span className="inline-flex items-center justify-center">
-                          Status {getSortIcon("status")}
-                        </span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border bg-background">
-                    {filteredAndSortedCompanies.map((company, index) => (
-                      <tr
-                        key={company.id}
-                        className={`hover:bg-muted/30 transition-colors cursor-pointer ${
-                          index % 2 === 0 ? "bg-background" : "bg-muted/10"
-                        }`}
-                        onClick={() => navigate(`/company/${company.id}`)}
-                      >
-                        <td className="px-4 py-3">
-                          <span className="font-medium text-foreground hover:text-primary">
-                            {company.company_name}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
-                          {company.industry || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
-                          {company.geography || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-foreground">
-                          {company.revenue ? formatCurrency(company.revenue) : company.revenue_band || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-muted-foreground hidden md:table-cell">
-                          {company.profit_before_tax ? formatCurrency(company.profit_before_tax) : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-muted-foreground hidden md:table-cell">
-                          {company.net_assets ? formatCurrency(company.net_assets) : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${
-                              statusBadges[company.status || "new"] || statusBadges.new
-                            }`}
+                        {isPaidUser ? (
+                          <Download className="h-4 w-4" />
+                        ) : (
+                          <Lock className="h-4 w-4" />
+                        )}
+                        Export CSV
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Companies Table */}
+                  <div className="table-container border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 border-b border-border">
+                        <tr>
+                          <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
+                            Company
+                          </th>
+                          <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">
+                            Industry
+                          </th>
+                          <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
+                            Location
+                          </th>
+                          <th 
+                            className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 cursor-pointer hover:text-foreground select-none"
+                            onClick={() => handleSort("revenue")}
                           >
-                            {(company.status || "new").charAt(0).toUpperCase() + (company.status || "new").slice(1)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {filteredAndSortedCompanies.length === 0 && (
-                  <div className="p-12 text-center bg-background">
-                    <p className="text-muted-foreground">No companies match your filters.</p>
+                            <span className="inline-flex items-center justify-end">
+                              Revenue {getSortIcon("revenue")}
+                            </span>
+                          </th>
+                          <th 
+                            className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell cursor-pointer hover:text-foreground select-none"
+                            onClick={() => handleSort("profit_before_tax")}
+                          >
+                            <span className="inline-flex items-center justify-end">
+                              PBT {getSortIcon("profit_before_tax")}
+                            </span>
+                          </th>
+                          <th 
+                            className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell cursor-pointer hover:text-foreground select-none"
+                            onClick={() => handleSort("net_assets")}
+                          >
+                            <span className="inline-flex items-center justify-end">
+                              Net Assets {getSortIcon("net_assets")}
+                            </span>
+                          </th>
+                          <th 
+                            className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 w-24 cursor-pointer hover:text-foreground select-none"
+                            onClick={() => handleSort("status")}
+                          >
+                            <span className="inline-flex items-center justify-center">
+                              Status {getSortIcon("status")}
+                            </span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border bg-background">
+                        {filteredAndSortedCompanies.map((company, index) => (
+                          <tr
+                            key={company.id}
+                            className={`hover:bg-muted/30 transition-colors cursor-pointer ${
+                              index % 2 === 0 ? "bg-background" : "bg-muted/10"
+                            }`}
+                            onClick={() => navigate(`/company/${company.id}`)}
+                          >
+                            <td className="px-4 py-3">
+                              <span className="font-medium text-foreground hover:text-primary">
+                                {company.company_name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
+                              {company.industry || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                              {company.geography || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground">
+                              {formatCurrency(company.revenue)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground hidden md:table-cell">
+                              {formatCurrency(company.profit_before_tax)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono text-foreground hidden md:table-cell">
+                              {formatCurrency(company.net_assets)}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`status-badge border ${statusBadges[company.status || "new"]}`}>
+                                {company.status || "new"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                )}
-              </div>
-            </>
-          )}
+
+                  {filteredAndSortedCompanies.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No companies match your current filters.
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="outreach">
+              <MandateOutreachTab mandateId={mandate.id} />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 
