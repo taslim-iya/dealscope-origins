@@ -12,6 +12,7 @@ import Pricing from "./pages/Pricing";
 import About from "./pages/About";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AdminSignup from "./pages/AdminSignup";
 import Dashboard from "./pages/Dashboard";
 import CreateMandate from "./pages/CreateMandate";
 import MandateWorkspace from "./pages/MandateWorkspace";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/admin-signup" element={<AdminSignup />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/mandate/create" element={<CreateMandate />} />
             <Route path="/mandate/:id" element={<MandateWorkspace />} />
