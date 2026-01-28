@@ -7,14 +7,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// UK business listing sources with direct search result pages
 const SOURCES = [
   {
-    name: "BusinessesForSale UK",
-    searchUrl: "https://uk.businessesforsale.com/uk/search/businesses-for-sale",
+    name: "BusinessesForSale.com",
+    searchUrl: "https://www.businessesforsale.com/search/businesses-for-sale/united-kingdom",
   },
   {
-    name: "Rightmove Business",
-    searchUrl: "https://www.rightmove.co.uk/commercial-property-for-sale.html",
+    name: "Daltons Business",
+    searchUrl: "https://www.daltonsbusiness.com/buy-a-business",
+  },
+  {
+    name: "RightBiz",
+    searchUrl: "https://www.rightbiz.co.uk/businesses-for-sale",
+  },
+  {
+    name: "BizBuySell UK",
+    searchUrl: "https://www.bizbuysell.com/united-kingdom-businesses-for-sale/",
   },
 ];
 
@@ -48,13 +57,13 @@ serve(async (req) => {
     }
 
     const userId = claimsData.claims.sub;
-    let body: any = {};
+    let body: Record<string, unknown> = {};
     try {
       body = await req.json();
     } catch {
       // Empty body is fine
     }
-    const { source } = body;
+    const { sources: requestedSources } = body as { sources?: string[] };
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -66,18 +75,24 @@ serve(async (req) => {
       );
     }
 
-    const sourcesToScrape = source
-      ? SOURCES.filter((s) => s.name === source)
+    // Filter sources if specific ones requested
+    const sourcesToScrape = requestedSources && requestedSources.length > 0
+      ? SOURCES.filter((s) => 
+          requestedSources.some(rs => 
+            s.name.toLowerCase().includes(rs.toLowerCase()) || 
+            rs.toLowerCase().includes(s.name.toLowerCase().split(' ')[0])
+          )
+        )
       : SOURCES;
 
     if (sourcesToScrape.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Invalid source specified" }),
+        JSON.stringify({ error: "No valid sources specified", available: SOURCES.map(s => s.name) }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const results: any[] = [];
+    const results: { source: string; success: boolean; deals_found?: number; error?: string }[] = [];
 
     for (const sourceConfig of sourcesToScrape) {
       console.log(`Scraping ${sourceConfig.name}...`);
@@ -95,7 +110,7 @@ serve(async (req) => {
       const logId = logData?.id;
 
       try {
-        // Step 1: Scrape the page with Firecrawl
+        // Step 1: Scrape the page with Firecrawl using correct format
         const scrapeResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
           method: "POST",
           headers: {
@@ -106,7 +121,8 @@ serve(async (req) => {
             url: sourceConfig.searchUrl,
             formats: ["markdown"],
             onlyMainContent: true,
-            waitFor: 3000,
+            waitFor: 5000,
+            timeout: 30000,
           }),
         });
 
@@ -132,13 +148,44 @@ serve(async (req) => {
           continue;
         }
 
-        const markdown = scrapeData.data?.markdown || scrapeData.markdown || "";
+        const markdown = scrapeData.data?.markdown || "";
         console.log(`Got ${markdown.length} chars of markdown from ${sourceConfig.name}`);
 
-        // Step 2: Use AI to extract listings
-        let deals: any[] = [];
+        // Check if we got actual content (not just cookie banners)
+        if (markdown.length < 500 || markdown.toLowerCase().includes("page not found")) {
+          console.log(`Insufficient content from ${sourceConfig.name}`);
+          if (logId) {
+            await supabase
+              .from("scrape_logs")
+              .update({
+                status: "error",
+                error_message: "Page did not return business listings",
+                completed_at: new Date().toISOString(),
+              })
+              .eq("id", logId);
+          }
+          results.push({
+            source: sourceConfig.name,
+            success: false,
+            error: "Page did not return business listings",
+          });
+          continue;
+        }
 
-        if (LOVABLE_API_KEY && markdown.length > 200) {
+        // Step 2: Use AI to extract listings
+        let deals: {
+          company_name?: string;
+          asking_price?: string;
+          location?: string;
+          industry?: string;
+          revenue?: string;
+          profit?: string;
+          net_assets?: string;
+          description?: string;
+          ai_summary?: string;
+        }[] = [];
+
+        if (LOVABLE_API_KEY) {
           console.log(`Using AI to extract listings from ${sourceConfig.name}...`);
 
           const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -152,22 +199,36 @@ serve(async (req) => {
               messages: [
                 {
                   role: "user",
-                  content: `You are extracting business-for-sale listings. Analyze this webpage content and extract ALL business listings you can find.
+                  content: `You are extracting business-for-sale listings from a UK business marketplace website. 
+                  
+Analyze this webpage content and extract ALL business listings you can find. Look for patterns like:
+- Business names or titles
+- Asking prices (usually in GBP £)
+- Locations in the UK
+- Industries/sectors
+- Revenue/turnover figures
+- Profit figures
+- Brief descriptions
 
-For each listing, return:
-- company_name: The business name/title (REQUIRED)
-- asking_price: The sale price if shown
-- location: UK city/region
-- industry: Type of business
+For each listing found, extract:
+- company_name: The business name/title (REQUIRED - skip if not found)
+- asking_price: The sale price (e.g., "£250,000")
+- location: UK city/region (e.g., "London", "Manchester")
+- industry: Type of business (e.g., "Restaurant", "Retail", "Manufacturing")
 - revenue: Annual turnover if mentioned
-- profit: Annual profit if mentioned  
-- description: Brief business description
+- profit: Annual profit if mentioned
+- description: Brief business description (max 200 chars)
+
+IMPORTANT: 
+- Only extract actual business listings, not navigation or ads
+- If you find no valid listings, return {"listings": []}
+- Return ONLY valid JSON
 
 Return a JSON object with format: {"listings": [...]}
 
 Here is the webpage content from ${sourceConfig.name}:
 
-${markdown.substring(0, 15000)}`,
+${markdown.substring(0, 20000)}`,
                 },
               ],
             }),
@@ -176,25 +237,28 @@ ${markdown.substring(0, 15000)}`,
           if (aiResponse.ok) {
             const aiData = await aiResponse.json();
             const content = aiData.choices?.[0]?.message?.content || "";
-            console.log("AI response preview:", content.substring(0, 300));
-            
+            console.log("AI response preview:", content.substring(0, 500));
+
             // Try to extract JSON from the response
             try {
-              // Look for JSON in the response
-              const jsonMatch = content.match(/\{[\s\S]*"listings"[\s\S]*\}/);
+              // Clean up the content - remove markdown code blocks if present
+              let cleanContent = content
+                .replace(/```json\n?/gi, "")
+                .replace(/```\n?/gi, "")
+                .trim();
+
+              // Look for JSON object in the response
+              const jsonMatch = cleanContent.match(/\{[\s\S]*"listings"[\s\S]*\}/);
               if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
                 deals = parsed.listings || [];
-              } else if (content.includes("[")) {
-                // Try to find array directly
-                const arrayMatch = content.match(/\[[\s\S]*\]/);
-                if (arrayMatch) {
-                  deals = JSON.parse(arrayMatch[0]);
-                }
+              } else if (cleanContent.startsWith("{")) {
+                const parsed = JSON.parse(cleanContent);
+                deals = parsed.listings || [];
               }
-              console.log(`AI extracted ${deals.length} deals`);
+              console.log(`AI extracted ${deals.length} deals from ${sourceConfig.name}`);
             } catch (e) {
-              console.error("Failed to parse AI response:", e, "Content:", content.substring(0, 500));
+              console.error("Failed to parse AI response:", e);
             }
           } else {
             const errText = await aiResponse.text();
@@ -202,10 +266,10 @@ ${markdown.substring(0, 15000)}`,
           }
         }
 
-        // Step 3: Generate summaries (limit to 10)
+        // Step 3: Generate summaries for top deals (limit to 10)
         const dealsToProcess = deals.slice(0, 10);
         for (const deal of dealsToProcess) {
-          if (LOVABLE_API_KEY && deal.company_name) {
+          if (LOVABLE_API_KEY && deal.company_name && !deal.ai_summary) {
             try {
               const summaryResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
                 method: "POST",
@@ -218,7 +282,16 @@ ${markdown.substring(0, 15000)}`,
                   messages: [
                     {
                       role: "user",
-                      content: `Write a 2 sentence investment summary for: ${deal.company_name}, ${deal.industry || "business"} in ${deal.location || "UK"}. Price: ${deal.asking_price || "TBD"}. ${deal.description || ""}`,
+                      content: `Write a concise 2-sentence investment summary for this UK business listing:
+                      
+Business: ${deal.company_name}
+Industry: ${deal.industry || "Not specified"}
+Location: ${deal.location || "UK"}
+Asking Price: ${deal.asking_price || "Price on application"}
+Revenue: ${deal.revenue || "Not disclosed"}
+Description: ${deal.description || "No description available"}
+
+Focus on key investment highlights and potential.`,
                     },
                   ],
                 }),
@@ -229,17 +302,18 @@ ${markdown.substring(0, 15000)}`,
                 deal.ai_summary = summaryData.choices?.[0]?.message?.content || null;
               }
             } catch (e) {
-              console.error("Summary error:", e);
+              console.error("Summary generation error:", e);
             }
           }
         }
 
-        // Step 4: Store deals
+        // Step 4: Store deals in database
         let insertedCount = 0;
         for (const deal of dealsToProcess) {
           if (!deal.company_name) continue;
 
-          const dealUrl = `${sourceConfig.searchUrl}#${encodeURIComponent(deal.company_name)}`;
+          // Create a unique URL based on source and company name
+          const dealUrl = `${sourceConfig.searchUrl}#${encodeURIComponent(deal.company_name.substring(0, 50))}`;
 
           const { error: insertError } = await supabase.from("on_market_deals").upsert(
             {
