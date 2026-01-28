@@ -1,0 +1,533 @@
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  Building2,
+  Search,
+  Loader2,
+  LogOut,
+  Filter,
+  ExternalLink,
+  Users,
+  FileText,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Profile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  company_name: string | null;
+}
+
+interface Mandate {
+  id: string;
+  name: string;
+  status: string;
+  user_id: string;
+  created_at: string;
+  industry_description: string | null;
+  regions: string[] | null;
+  revenue_min: number | null;
+  revenue_max: number | null;
+  profile?: Profile;
+}
+
+interface Company {
+  id: string;
+  company_name: string;
+  geography: string | null;
+  industry: string | null;
+  revenue_band: string | null;
+  asset_band: string | null;
+  status: string | null;
+  revenue: number | null;
+  website: string | null;
+  mandate_id: string;
+  created_at: string;
+  mandate?: Mandate;
+}
+
+const statusBadges: Record<string, string> = {
+  new: "bg-blue-50 text-blue-700 border-blue-200",
+  reviewed: "bg-slate-100 text-slate-600 border-slate-200",
+  shortlisted: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+
+const formatCurrency = (value: number | null): string => {
+  if (value === null) return "—";
+  if (value >= 1000000) return `£${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `£${(value / 1000).toFixed(0)}K`;
+  return `£${value.toFixed(0)}`;
+};
+
+export default function AdminCompanies() {
+  const navigate = useNavigate();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { toast } = useToast();
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [mandates, setMandates] = useState<Mandate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const [geographyFilter, setGeographyFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [mandateFilter, setMandateFilter] = useState<string>("all");
+
+  // Unique filter options
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [geographies, setGeographies] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [authLoading, user, navigate]);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      setIsAdmin(!!data);
+      setCheckingAdmin(false);
+
+      if (!data) {
+        toast({
+          title: "Access denied",
+          description: "You don't have admin permissions.",
+          variant: "destructive",
+        });
+        navigate("/dashboard");
+      }
+    };
+
+    if (user) {
+      checkAdminStatus();
+    }
+  }, [user, navigate, toast]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!isAdmin) return;
+      setLoading(true);
+
+      // Fetch all mandates with client info
+      const { data: mandatesData } = await supabase
+        .from("mandates")
+        .select("id, name, status, user_id, created_at, industry_description, regions, revenue_min, revenue_max")
+        .order("created_at", { ascending: false });
+
+      if (mandatesData) {
+        const userIds = [...new Set(mandatesData.map((m) => m.user_id))];
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, email, full_name, company_name")
+          .in("id", userIds);
+
+        const profilesMap = new Map<string, Profile>();
+        profilesData?.forEach((p) => profilesMap.set(p.id, p));
+
+        const mandatesWithProfiles = mandatesData.map((m) => ({
+          ...m,
+          profile: profilesMap.get(m.user_id),
+        }));
+        setMandates(mandatesWithProfiles);
+      }
+
+      // Fetch all companies
+      const { data: companiesData } = await supabase
+        .from("companies")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (companiesData && mandatesData) {
+        // Map mandates to companies
+        const mandateMap = new Map<string, Mandate>();
+        mandatesData.forEach((m) => {
+          const userIds = [...new Set(mandatesData.map((md) => md.user_id))];
+          mandateMap.set(m.id, m as Mandate);
+        });
+
+        const companiesWithMandates = companiesData.map((c) => ({
+          ...c,
+          mandate: mandateMap.get(c.mandate_id),
+        }));
+        setCompanies(companiesWithMandates);
+
+        // Extract unique filter values
+        const uniqueIndustries = [...new Set(companiesData.map((c) => c.industry).filter(Boolean))] as string[];
+        const uniqueGeographies = [...new Set(companiesData.map((c) => c.geography).filter(Boolean))] as string[];
+        setIndustries(uniqueIndustries.sort());
+        setGeographies(uniqueGeographies.sort());
+      }
+
+      setLoading(false);
+    };
+
+    if (isAdmin) {
+      fetchData();
+    }
+  }, [isAdmin]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  // Filter companies
+  const filteredCompanies = companies.filter((company) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      company.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.industry?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.geography?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesIndustry = industryFilter === "all" || company.industry === industryFilter;
+    const matchesGeography = geographyFilter === "all" || company.geography === geographyFilter;
+    const matchesStatus = statusFilter === "all" || company.status === statusFilter;
+    const matchesMandate = mandateFilter === "all" || company.mandate_id === mandateFilter;
+
+    return matchesSearch && matchesIndustry && matchesGeography && matchesStatus && matchesMandate;
+  });
+
+  // Get unique clients from mandates
+  const uniqueClients = [...new Map(mandates.map((m) => [m.profile?.id, m.profile])).values()].filter(Boolean);
+
+  if (authLoading || checkingAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background">
+        <div className="container-wide h-16 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/" className="text-lg font-semibold text-foreground">
+              DealScope
+            </Link>
+            <span className="px-2 py-1 text-xs font-medium bg-primary text-primary-foreground rounded">
+              Admin
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground hidden sm:block">
+              {profile?.email || user?.email}
+            </span>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Log out
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 py-8">
+        <div className="container-wide">
+          <div className="flex items-center gap-4 mb-6">
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Admin Dashboard
+            </Link>
+          </div>
+
+          <div className="mb-8">
+            <h1 className="text-2xl font-semibold text-foreground">Company Database</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Search and manage all companies across mandates. Use filters to find matches for new client requests.
+            </p>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid gap-6 md:grid-cols-4 mb-8">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Companies
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  <span className="text-2xl font-semibold">{companies.length}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Active Mandates
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <span className="text-2xl font-semibold">{mandates.length}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Unique Clients
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  <span className="text-2xl font-semibold">{uniqueClients.length}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Industries Covered
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <Filter className="h-5 w-5 text-primary" />
+                  <span className="text-2xl font-semibold">{industries.length}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search and Filters */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Search & Filter
+              </CardTitle>
+              <CardDescription>
+                Find companies matching specific criteria. When a client requests new companies, search here first to find existing matches.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-5">
+                <div className="md:col-span-2">
+                  <Input
+                    placeholder="Search by name, industry, or geography..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                <Select value={industryFilter} onValueChange={setIndustryFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Industries</SelectItem>
+                    {industries.map((industry) => (
+                      <SelectItem key={industry} value={industry}>
+                        {industry}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={geographyFilter} onValueChange={setGeographyFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Geography" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Geographies</SelectItem>
+                    {geographies.map((geography) => (
+                      <SelectItem key={geography} value={geography}>
+                        {geography}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="reviewed">Reviewed</SelectItem>
+                    <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="mt-4">
+                <Select value={mandateFilter} onValueChange={setMandateFilter}>
+                  <SelectTrigger className="w-full max-w-md">
+                    <SelectValue placeholder="Filter by mandate/client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Mandates</SelectItem>
+                    {mandates.map((mandate) => (
+                      <SelectItem key={mandate.id} value={mandate.id}>
+                        {mandate.name} — {mandate.profile?.company_name || mandate.profile?.email || "Unknown"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {filteredCompanies.length !== companies.length && (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Showing {filteredCompanies.length} of {companies.length} companies
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Companies Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>All Companies</CardTitle>
+              <CardDescription>
+                Complete database of uploaded companies with client attribution
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : filteredCompanies.length === 0 ? (
+                <div className="text-center py-12">
+                  <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    {companies.length === 0
+                      ? "No companies uploaded yet"
+                      : "No companies match your filters"}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Company Name</TableHead>
+                        <TableHead>Industry</TableHead>
+                        <TableHead>Geography</TableHead>
+                        <TableHead>Revenue</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Mandate</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCompanies.map((company) => (
+                        <TableRow key={company.id}>
+                          <TableCell className="font-medium">
+                            {company.company_name}
+                          </TableCell>
+                          <TableCell>{company.industry || "—"}</TableCell>
+                          <TableCell>{company.geography || "—"}</TableCell>
+                          <TableCell>
+                            {company.revenue
+                              ? formatCurrency(company.revenue)
+                              : company.revenue_band || "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={statusBadges[company.status || "new"] || statusBadges.new}
+                            >
+                              {(company.status || "new").charAt(0).toUpperCase() +
+                                (company.status || "new").slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">
+                              {company.mandate?.profile?.company_name ||
+                                company.mandate?.profile?.email ||
+                                "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              to={`/mandate/${company.mandate_id}`}
+                              className="text-sm text-primary hover:underline"
+                            >
+                              {company.mandate?.name || "—"}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/company/${company.id}`)}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+}

@@ -18,6 +18,7 @@ import CreateMandate from "./pages/CreateMandate";
 import MandateWorkspace from "./pages/MandateWorkspace";
 import CompanyDetails from "./pages/CompanyDetails";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminCompanies from "./pages/AdminCompanies";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,8 @@ const App = () => (
             <Route path="/mandate/:id" element={<MandateWorkspace />} />
             <Route path="/company/:id" element={<CompanyDetails />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/companies" element={<AdminCompanies />} />
+            <Route path="*" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

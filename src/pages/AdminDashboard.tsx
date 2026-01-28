@@ -373,11 +373,19 @@ export default function AdminDashboard() {
             Back to user dashboard
           </Link>
 
-          <div className="mb-8">
-            <h1 className="text-2xl font-semibold text-foreground">Admin Dashboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Manage mandate requests and upload company data
-            </p>
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">Admin Dashboard</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Manage mandate requests and upload company data
+              </p>
+            </div>
+            <Link to="/admin/companies">
+              <Button variant="outline" className="gap-2">
+                <Building2 className="h-4 w-4" />
+                Company Database
+              </Button>
+            </Link>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3 mb-8">
