@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -81,6 +81,8 @@ export default function MandateWorkspace() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortColumn, setSortColumn] = useState<"revenue" | "total_assets" | "net_assets" | "status" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -137,11 +139,54 @@ export default function MandateWorkspace() {
     navigate("/");
   };
 
-  const filteredCompanies = companies.filter((company) => {
-    const matchesSearch = company.company_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || company.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const handleSort = (column: "revenue" | "total_assets" | "net_assets" | "status") => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("desc");
+    }
+  };
+
+  const getSortIcon = (column: "revenue" | "total_assets" | "net_assets" | "status") => {
+    if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-3 w-3 ml-1" /> 
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
+  const filteredAndSortedCompanies = useMemo(() => {
+    let result = companies.filter((company) => {
+      const matchesSearch = company.company_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === "all" || company.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    if (sortColumn) {
+      result = [...result].sort((a, b) => {
+        let aVal: number | string | null;
+        let bVal: number | string | null;
+
+        if (sortColumn === "status") {
+          aVal = a.status || "new";
+          bVal = b.status || "new";
+          const comparison = aVal.localeCompare(bVal);
+          return sortDirection === "asc" ? comparison : -comparison;
+        } else {
+          aVal = a[sortColumn];
+          bVal = b[sortColumn];
+          // Handle nulls - push them to the end
+          if (aVal === null && bVal === null) return 0;
+          if (aVal === null) return 1;
+          if (bVal === null) return -1;
+          const comparison = aVal - bVal;
+          return sortDirection === "asc" ? comparison : -comparison;
+        }
+      });
+    }
+
+    return result;
+  }, [companies, searchQuery, statusFilter, sortColumn, sortDirection]);
 
   // Build criteria summary
   const buildGeographySummary = () => {
@@ -306,22 +351,42 @@ export default function MandateWorkspace() {
                       <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
                         Location
                       </th>
-                      <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
-                        Revenue
+                      <th 
+                        className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("revenue")}
+                      >
+                        <span className="inline-flex items-center justify-end">
+                          Revenue {getSortIcon("revenue")}
+                        </span>
                       </th>
-                      <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
-                        Total Assets
+                      <th 
+                        className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("total_assets")}
+                      >
+                        <span className="inline-flex items-center justify-end">
+                          Total Assets {getSortIcon("total_assets")}
+                        </span>
                       </th>
-                      <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
-                        Net Assets
+                      <th 
+                        className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("net_assets")}
+                      >
+                        <span className="inline-flex items-center justify-end">
+                          Net Assets {getSortIcon("net_assets")}
+                        </span>
                       </th>
-                      <th className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 w-24">
-                        Status
+                      <th 
+                        className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 w-24 cursor-pointer hover:text-foreground select-none"
+                        onClick={() => handleSort("status")}
+                      >
+                        <span className="inline-flex items-center justify-center">
+                          Status {getSortIcon("status")}
+                        </span>
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border bg-background">
-                    {filteredCompanies.map((company, index) => (
+                    {filteredAndSortedCompanies.map((company, index) => (
                       <tr
                         key={company.id}
                         className={`hover:bg-muted/30 transition-colors cursor-pointer ${
@@ -363,7 +428,7 @@ export default function MandateWorkspace() {
                   </tbody>
                 </table>
 
-                {filteredCompanies.length === 0 && (
+                {filteredAndSortedCompanies.length === 0 && (
                   <div className="p-12 text-center bg-background">
                     <p className="text-muted-foreground">No companies match your filters.</p>
                   </div>
