@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Sparkles, Building2, Loader2, Plus, Check, ExternalLink } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { Sparkles, Building2, Loader2, Plus, Check, ExternalLink, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -10,6 +12,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -51,13 +58,34 @@ const formatCurrency = (value: number | null): string => {
   return `£${value.toFixed(0)}`;
 };
 
+// Default threshold stored in localStorage
+const THRESHOLD_STORAGE_KEY = "dealscope_match_threshold";
+const DEFAULT_THRESHOLD = 20;
+
 export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedMatchesProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [matches, setMatches] = useState<MatchedCompany[]>([]);
+  const [allMatches, setAllMatches] = useState<MatchedCompany[]>([]);
   const [addingCompanyId, setAddingCompanyId] = useState<string | null>(null);
   const [addedCompanyIds, setAddedCompanyIds] = useState<Set<string>>(new Set());
+  const [threshold, setThreshold] = useState(() => {
+    const stored = localStorage.getItem(THRESHOLD_STORAGE_KEY);
+    return stored ? parseInt(stored, 10) : DEFAULT_THRESHOLD;
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Filter matches based on threshold
+  const matches = useMemo(() => {
+    return allMatches.filter((company) => company.matchScore >= threshold);
+  }, [allMatches, threshold]);
+
+  // Save threshold to localStorage when it changes
+  const handleThresholdChange = (value: number[]) => {
+    const newThreshold = value[0];
+    setThreshold(newThreshold);
+    localStorage.setItem(THRESHOLD_STORAGE_KEY, newThreshold.toString());
+  };
 
   useEffect(() => {
     const findMatches = async () => {
@@ -76,7 +104,7 @@ export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedM
       }
 
       if (!companiesData || companiesData.length === 0) {
-        setMatches([]);
+        setAllMatches([]);
         setLoading(false);
         return;
       }
@@ -148,9 +176,9 @@ export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedM
         })
         .filter((company) => company.matchScore > 0)
         .sort((a, b) => b.matchScore - a.matchScore)
-        .slice(0, 10); // Top 10 matches
+        .slice(0, 20); // Top 20 matches (threshold applied via useMemo)
 
-      setMatches(scoredCompanies);
+      setAllMatches(scoredCompanies);
       setLoading(false);
     };
 
@@ -207,14 +235,51 @@ export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedM
     );
   }
 
-  if (matches.length === 0) {
+  const thresholdSettings = (
+    <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+          <SlidersHorizontal className="h-4 w-4" />
+          Settings
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-4 p-4 rounded-lg border border-border bg-background">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Minimum Match Score</Label>
+            <span className="text-sm font-semibold text-primary">{threshold}%</span>
+          </div>
+          <Slider
+            value={[threshold]}
+            onValueChange={handleThresholdChange}
+            min={0}
+            max={100}
+            step={5}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            Only show companies with a match score of {threshold}% or higher.
+            {allMatches.length > 0 && (
+              <span className="block mt-1">
+                {matches.length} of {allMatches.length} companies meet this threshold.
+              </span>
+            )}
+          </p>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
+  if (matches.length === 0 && allMatches.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-amber-500" />
-            Suggested Matches
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              Suggested Matches
+            </CardTitle>
+          </div>
           <CardDescription>
             Companies from your database that match this mandate's criteria
           </CardDescription>
@@ -234,22 +299,55 @@ export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedM
     );
   }
 
+  if (matches.length === 0 && allMatches.length > 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              Suggested Matches
+            </CardTitle>
+          </div>
+          <CardDescription>
+            Companies from your database that match this mandate's criteria
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {thresholdSettings}
+          <div className="text-center py-8 mt-4">
+            <Building2 className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              No companies meet the {threshold}% threshold.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Lower the threshold to see {allMatches.length} potential matches.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-500" />
-          Suggested Matches
-          <Badge variant="secondary" className="ml-2">
-            {matches.length} found
-          </Badge>
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-amber-500" />
+            Suggested Matches
+            <Badge variant="secondary" className="ml-2">
+              {matches.length} found
+            </Badge>
+          </CardTitle>
+        </div>
         <CardDescription>
           Companies from your database that match this mandate's criteria. Add them to fulfill this request.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
+        {thresholdSettings}
+        <div className="space-y-3 mt-4">
           {matches.map((company) => {
             const isAdded = addedCompanyIds.has(company.id);
             const isAdding = addingCompanyId === company.id;
