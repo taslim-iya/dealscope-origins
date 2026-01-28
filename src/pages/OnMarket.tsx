@@ -188,11 +188,9 @@ export default function OnMarket() {
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
                 AI-powered discovery of companies currently available for sale in the United Kingdom.
               </p>
-              <div className="mt-8">
-                <Button asChild>
-                  <Link to="/signup">Get Early Access</Link>
-                </Button>
-              </div>
+              <p className="mt-6 text-sm text-muted-foreground">
+                This feature is currently in development. Check back soon.
+              </p>
             </div>
           </div>
         </section>
