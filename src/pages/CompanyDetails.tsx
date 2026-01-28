@@ -16,6 +16,7 @@ import {
   Loader2,
   ExternalLink,
   Check,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,9 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { OutreachPanel } from "@/components/outreach/OutreachPanel";
 
 interface Company {
   id: string;
@@ -244,170 +247,193 @@ export default function CompanyDetails() {
       {/* Main Content */}
       <main className="flex-1 py-6">
         <div className="container-wide">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Company Info Card */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Company Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Description */}
-                {company.description_of_activities && (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                      Description of Activities
-                    </h4>
-                    <p className="text-foreground">
-                      {company.description_of_activities}
-                    </p>
-                  </div>
-                )}
+          <Tabs defaultValue="details" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="details" className="gap-2">
+                <FileText className="h-4 w-4" />
+                Details
+              </TabsTrigger>
+              <TabsTrigger value="outreach" className="gap-2">
+                <Mail className="h-4 w-4" />
+                Outreach
+              </TabsTrigger>
+            </TabsList>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Companies House Number */}
-                  <div className="flex items-start gap-3">
-                    <Hash className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Companies House Number
-                      </p>
-                      <p className="font-medium text-foreground">
-                        {company.companies_house_number || "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Website */}
-                  <div className="flex items-start gap-3">
-                    <Globe className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Website</p>
-                      {company.website ? (
-                        <a
-                          href={
-                            company.website.startsWith("http")
-                              ? company.website
-                              : `https://${company.website}`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-primary hover:underline inline-flex items-center gap-1"
-                        >
-                          {company.website}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        <p className="font-medium text-foreground">—</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Industry */}
-                  <div className="flex items-start gap-3">
-                    <Factory className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Industry</p>
-                      <p className="font-medium text-foreground">
-                        {company.industry || "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Location / Geography */}
-                  <div className="flex items-start gap-3">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Location</p>
-                      <p className="font-medium text-foreground">
-                        {company.geography || "—"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Address */}
-                {company.address && (
-                  <div className="flex items-start gap-3 pt-2 border-t border-border">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Registered Address
-                      </p>
-                      <p className="font-medium text-foreground">
-                        {company.address}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Financials Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Financials
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <Banknote className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Revenue</p>
-                    <p className="font-semibold text-foreground">
-                      {formatCurrency(company.revenue)}
-                    </p>
-                    {company.revenue_band && (
-                      <p className="text-xs text-muted-foreground">
-                        Band: {company.revenue_band}
-                      </p>
+            <TabsContent value="details">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Company Info Card */}
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Company Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Description */}
+                    {company.description_of_activities && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                          Description of Activities
+                        </h4>
+                        <p className="text-foreground">
+                          {company.description_of_activities}
+                        </p>
+                      </div>
                     )}
-                  </div>
-                </div>
 
-                <div className="flex items-start gap-3">
-                  <TrendingUp className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Profit Before Tax
-                    </p>
-                    <p className="font-semibold text-foreground">
-                      {formatCurrency(company.profit_before_tax)}
-                    </p>
-                  </div>
-                </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Companies House Number */}
+                      <div className="flex items-start gap-3">
+                        <Hash className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">
+                            Companies House Number
+                          </p>
+                          <p className="font-medium text-foreground">
+                            {company.companies_house_number || "—"}
+                          </p>
+                        </div>
+                      </div>
 
-                <div className="flex items-start gap-3">
-                  <Wallet className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Net Assets</p>
-                    <p className="font-semibold text-foreground">
-                      {formatCurrency(company.net_assets)}
-                    </p>
-                  </div>
-                </div>
+                      {/* Website */}
+                      <div className="flex items-start gap-3">
+                        <Globe className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Website</p>
+                          {company.website ? (
+                            <a
+                              href={
+                                company.website.startsWith("http")
+                                  ? company.website
+                                  : `https://${company.website}`
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              {company.website}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            <p className="font-medium text-foreground">—</p>
+                          )}
+                        </div>
+                      </div>
 
-                <div className="flex items-start gap-3">
-                  <BarChart3 className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Assets</p>
-                    <p className="font-semibold text-foreground">
-                      {formatCurrency(company.total_assets)}
-                    </p>
-                    {company.asset_band && (
-                      <p className="text-xs text-muted-foreground">
-                        Band: {company.asset_band}
-                      </p>
+                      {/* Industry */}
+                      <div className="flex items-start gap-3">
+                        <Factory className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Industry</p>
+                          <p className="font-medium text-foreground">
+                            {company.industry || "—"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Location / Geography */}
+                      <div className="flex items-start gap-3">
+                        <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Location</p>
+                          <p className="font-medium text-foreground">
+                            {company.geography || "—"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    {company.address && (
+                      <div className="flex items-start gap-3 pt-2 border-t border-border">
+                        <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">
+                            Registered Address
+                          </p>
+                          <p className="font-medium text-foreground">
+                            {company.address}
+                          </p>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                  </CardContent>
+                </Card>
+
+                {/* Financials Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Financials
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <Banknote className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Revenue</p>
+                        <p className="font-semibold text-foreground">
+                          {formatCurrency(company.revenue)}
+                        </p>
+                        {company.revenue_band && (
+                          <p className="text-xs text-muted-foreground">
+                            Band: {company.revenue_band}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Profit Before Tax
+                        </p>
+                        <p className="font-semibold text-foreground">
+                          {formatCurrency(company.profit_before_tax)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Wallet className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Net Assets</p>
+                        <p className="font-semibold text-foreground">
+                          {formatCurrency(company.net_assets)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <BarChart3 className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Assets</p>
+                        <p className="font-semibold text-foreground">
+                          {formatCurrency(company.total_assets)}
+                        </p>
+                        {company.asset_band && (
+                          <p className="text-xs text-muted-foreground">
+                            Band: {company.asset_band}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="outreach">
+              <OutreachPanel
+                companyId={company.id}
+                mandateId={company.mandate_id}
+                companyName={company.company_name}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 
