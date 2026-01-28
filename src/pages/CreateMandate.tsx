@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const steps = [
   { id: 1, name: "Mandate Details" },
@@ -16,6 +19,8 @@ const steps = [
 
 export default function CreateMandate() {
   const navigate = useNavigate();
+  const { user, profile, loading: authLoading } = useAuth();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     name: "",
@@ -33,6 +38,12 @@ export default function CreateMandate() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [authLoading, user, navigate]);
+
   const updateFormData = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -45,12 +56,80 @@ export default function CreateMandate() {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    navigate("/dashboard");
+  const parseNumber = (value: string): number | null => {
+    if (!value.trim()) return null;
+    const num = parseFloat(value.replace(/,/g, ""));
+    return isNaN(num) ? null : num;
   };
+
+  const handleSubmit = async () => {
+    if (!user || !profile) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create a mandate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const regionsArray = formData.regions
+      .split(",")
+      .map((r) => r.trim())
+      .filter((r) => r.length > 0);
+
+    const { data, error } = await supabase
+      .from("mandates")
+      .insert({
+        user_id: user.id,
+        domain_id: profile.domain_id,
+        name: formData.name,
+        notes: formData.notes || null,
+        country: formData.country,
+        regions: regionsArray.length > 0 ? regionsArray : null,
+        sic_codes: formData.sicCodes || null,
+        industry_description: formData.industryDescription || null,
+        revenue_min: parseNumber(formData.revenueMin),
+        revenue_max: parseNumber(formData.revenueMax),
+        total_assets_min: parseNumber(formData.totalAssetsMin),
+        total_assets_max: parseNumber(formData.totalAssetsMax),
+        net_assets_min: parseNumber(formData.netAssetsMin),
+        net_assets_max: parseNumber(formData.netAssetsMax),
+        status: "draft",
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("Error creating mandate:", error);
+      toast({
+        title: "Failed to create mandate",
+        description: error.message,
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    toast({
+      title: "Mandate created",
+      description: "Your mandate has been saved successfully.",
+    });
+    navigate(`/mandate/${data.id}`);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
