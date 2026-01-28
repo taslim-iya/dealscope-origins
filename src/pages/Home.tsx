@@ -5,7 +5,7 @@ import { Layout } from "@/components/layout/Layout";
 
 const pillars = [
   {
-    title: "Off-Market Origination",
+    title: "Deal Sourcing",
     status: "Live",
     description:
       "Buyer-mandated sourcing of off-market companies based on your defined acquisition criteria. Access our private master database.",
@@ -14,7 +14,7 @@ const pillars = [
     cta: "Start a mandate",
   },
   {
-    title: "On-Market Deal Intelligence",
+    title: "Marketplace",
     status: "Coming Soon",
     description:
       "Buyer-side discovery of companies already available for sale, aggregated and normalised from public sources across the UK.",

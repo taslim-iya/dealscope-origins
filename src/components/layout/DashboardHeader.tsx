@@ -34,8 +34,8 @@ export function DashboardHeader({ email, onSignOut }: DashboardHeaderProps) {
   }, [user]);
 
   const tabs = [
-    { name: "Off-Market", href: "/dashboard", icon: Target, adminOnly: false },
-    { name: "On-Market", href: "/on-market", icon: Search, adminOnly: true },
+    { name: "Deal Sourcing", href: "/dashboard", icon: Target, adminOnly: false },
+    { name: "Marketplace", href: "/on-market", icon: Search, adminOnly: true },
   ];
 
   const isActive = (href: string) => {

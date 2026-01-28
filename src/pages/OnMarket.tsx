@@ -183,7 +183,7 @@ export default function OnMarket() {
             <div className="max-w-2xl mx-auto text-center">
               <span className="badge-coming-soon mb-6 inline-block">Coming Soon</span>
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-                On-Market Deal Intelligence
+                Marketplace
               </h1>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
                 AI-powered discovery of companies currently available for sale in the United Kingdom.
@@ -285,7 +285,7 @@ export default function OnMarket() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">
-                On-Market Deal Intelligence
+                Marketplace
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Discover companies currently available for sale across the UK
