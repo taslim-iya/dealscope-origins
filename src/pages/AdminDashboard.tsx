@@ -32,6 +32,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+interface Profile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  company_name: string | null;
+}
+
 interface Mandate {
   id: string;
   name: string;
@@ -39,11 +46,7 @@ interface Mandate {
   companies_delivered: number;
   user_id: string;
   created_at: string;
-  profiles?: {
-    email: string;
-    full_name: string | null;
-    company_name: string | null;
-  };
+  profile?: Profile;
 }
 
 interface Domain {
@@ -108,26 +111,33 @@ export default function AdminDashboard() {
     const fetchData = async () => {
       if (!isAdmin) return;
 
-      // Fetch all mandates with user info
+      // Fetch all mandates
       const { data: mandatesData } = await supabase
         .from("mandates")
-        .select(`
-          id,
-          name,
-          status,
-          companies_delivered,
-          user_id,
-          created_at,
-          profiles:user_id (
-            email,
-            full_name,
-            company_name
-          )
-        `)
+        .select("id, name, status, companies_delivered, user_id, created_at")
         .order("created_at", { ascending: false });
 
       if (mandatesData) {
-        setMandates(mandatesData as unknown as Mandate[]);
+        // Get unique user IDs
+        const userIds = [...new Set(mandatesData.map((m) => m.user_id))];
+
+        // Fetch profiles for those users
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, email, full_name, company_name")
+          .in("id", userIds);
+
+        // Create a map of profiles by ID
+        const profilesMap = new Map<string, Profile>();
+        profilesData?.forEach((p) => profilesMap.set(p.id, p));
+
+        // Merge profiles into mandates
+        const mandatesWithProfiles = mandatesData.map((m) => ({
+          ...m,
+          profile: profilesMap.get(m.user_id),
+        }));
+
+        setMandates(mandatesWithProfiles);
       }
 
       // Fetch all domains
@@ -180,23 +190,25 @@ export default function AdminDashboard() {
       // Refresh mandates
       const { data: updatedMandates } = await supabase
         .from("mandates")
-        .select(`
-          id,
-          name,
-          status,
-          companies_delivered,
-          user_id,
-          created_at,
-          profiles:user_id (
-            email,
-            full_name,
-            company_name
-          )
-        `)
+        .select("id, name, status, companies_delivered, user_id, created_at")
         .order("created_at", { ascending: false });
 
       if (updatedMandates) {
-        setMandates(updatedMandates as unknown as Mandate[]);
+        const userIds = [...new Set(updatedMandates.map((m) => m.user_id))];
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, email, full_name, company_name")
+          .in("id", userIds);
+
+        const profilesMap = new Map<string, Profile>();
+        profilesData?.forEach((p) => profilesMap.set(p.id, p));
+
+        setMandates(
+          updatedMandates.map((m) => ({
+            ...m,
+            profile: profilesMap.get(m.user_id),
+          }))
+        );
       }
     } catch (error) {
       console.error("Upload error:", error);
@@ -343,7 +355,7 @@ export default function AdminDashboard() {
                     <SelectContent>
                       {mandates.map((mandate) => (
                         <SelectItem key={mandate.id} value={mandate.id}>
-                          {mandate.name} ({mandate.profiles?.company_name || "Unknown"})
+                          {mandate.name} ({mandate.profile?.company_name || "Unknown"})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -419,12 +431,12 @@ export default function AdminDashboard() {
                           <div>
                             <p className="font-medium text-foreground">{mandate.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {mandate.profiles?.email}
+                              {mandate.profile?.email}
                             </p>
                           </div>
                         </td>
                         <td className="px-4 py-4 text-sm text-muted-foreground hidden md:table-cell">
-                          {mandate.profiles?.company_name || "—"}
+                          {mandate.profile?.company_name || "—"}
                         </td>
                         <td className="px-4 py-4">
                           <span
