@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, Lock, Mail } from "lucide-react";
+import { ArrowLeft, MapPin, Factory, Banknote, Filter, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, Lock, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { MandateOutreachTab } from "@/components/outreach/MandateOutreachTab";
+import { DashboardHeader } from "@/components/layout/DashboardHeader";
 
 interface Mandate {
   id: string;
@@ -272,23 +273,10 @@ export default function MandateWorkspace() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="container-wide h-16 flex items-center justify-between">
-          <Link to="/" className="text-lg font-semibold text-foreground">
-            DealScope
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {profile?.email || user.email}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Log out
-            </Button>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader 
+        email={profile?.email || user.email} 
+        onSignOut={handleSignOut} 
+      />
 
       {/* Sub-header */}
       <div className="border-b border-border bg-secondary/30">

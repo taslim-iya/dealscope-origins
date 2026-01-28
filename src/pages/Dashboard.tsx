@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, FileText, ChevronRight, LogOut, Loader2 } from "lucide-react";
+import { Plus, FileText, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { DashboardHeader } from "@/components/layout/DashboardHeader";
 
 interface Mandate {
   id: string;
@@ -78,23 +79,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="container-wide h-16 flex items-center justify-between">
-          <Link to="/" className="text-lg font-semibold text-foreground">
-            DealScope
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {profile?.email || user.email}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Log out
-            </Button>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader 
+        email={profile?.email || user.email} 
+        onSignOut={handleSignOut} 
+      />
 
       {/* Main Content */}
       <main className="flex-1 py-8">
