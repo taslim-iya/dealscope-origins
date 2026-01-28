@@ -9,20 +9,12 @@ const corsHeaders = {
 
 const SOURCES = [
   {
-    name: "BusinessesForSale.com",
-    searchUrl: "https://www.businessesforsale.com/search/businesses-for-sale/united-kingdom",
+    name: "BusinessesForSale UK",
+    searchUrl: "https://uk.businessesforsale.com/uk/search/businesses-for-sale",
   },
   {
-    name: "Daltons Business",
-    searchUrl: "https://www.daltonsbusiness.com/buy-a-business",
-  },
-  {
-    name: "RightBiz",
-    searchUrl: "https://www.rightbiz.co.uk/businesses-for-sale",
-  },
-  {
-    name: "BizBuySell UK",
-    searchUrl: "https://www.bizbuysell.com/united-kingdom-businesses-for-sale/",
+    name: "Rightmove Business",
+    searchUrl: "https://www.rightmove.co.uk/commercial-property-for-sale.html",
   },
 ];
 
@@ -56,7 +48,13 @@ serve(async (req) => {
     }
 
     const userId = claimsData.claims.sub;
-    const { source } = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      // Empty body is fine
+    }
+    const { source } = body;
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -68,7 +66,6 @@ serve(async (req) => {
       );
     }
 
-    // Filter sources if specific one requested
     const sourcesToScrape = source
       ? SOURCES.filter((s) => s.name === source)
       : SOURCES;
@@ -85,7 +82,6 @@ serve(async (req) => {
     for (const sourceConfig of sourcesToScrape) {
       console.log(`Scraping ${sourceConfig.name}...`);
 
-      // Create scrape log
       const { data: logData } = await supabase
         .from("scrape_logs")
         .insert({
@@ -99,7 +95,7 @@ serve(async (req) => {
       const logId = logData?.id;
 
       try {
-        // Step 1: Use Firecrawl to scrape the search results page
+        // Step 1: Scrape the page with Firecrawl
         const scrapeResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
           method: "POST",
           headers: {
@@ -110,6 +106,7 @@ serve(async (req) => {
             url: sourceConfig.searchUrl,
             formats: ["markdown"],
             onlyMainContent: true,
+            waitFor: 3000,
           }),
         });
 
@@ -117,7 +114,6 @@ serve(async (req) => {
 
         if (!scrapeResponse.ok || !scrapeData.success) {
           console.error(`Firecrawl error for ${sourceConfig.name}:`, scrapeData);
-          
           if (logId) {
             await supabase
               .from("scrape_logs")
@@ -128,7 +124,6 @@ serve(async (req) => {
               })
               .eq("id", logId);
           }
-          
           results.push({
             source: sourceConfig.name,
             success: false,
@@ -138,11 +133,14 @@ serve(async (req) => {
         }
 
         const markdown = scrapeData.data?.markdown || scrapeData.markdown || "";
+        console.log(`Got ${markdown.length} chars of markdown from ${sourceConfig.name}`);
 
-        // Step 2: Use AI to extract business listings from the markdown
+        // Step 2: Use AI to extract listings
         let deals: any[] = [];
 
-        if (LOVABLE_API_KEY && markdown.length > 100) {
+        if (LOVABLE_API_KEY && markdown.length > 200) {
+          console.log(`Using AI to extract listings from ${sourceConfig.name}...`);
+
           const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -150,75 +148,64 @@ serve(async (req) => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-3-flash-preview",
+              model: "google/gemini-2.5-flash",
               messages: [
                 {
-                  role: "system",
-                  content: `You are a data extraction expert. Extract business listings from the provided content. For each business, extract: company_name, asking_price, location, industry, revenue (if mentioned), profit (if mentioned), net_assets (if mentioned), description (brief), source_url (if available). Return a JSON array of objects. If no clear listings are found, return an empty array []. Only return valid JSON, no explanations.`,
-                },
-                {
                   role: "user",
-                  content: `Extract business listings from this ${sourceConfig.name} page content:\n\n${markdown.substring(0, 15000)}`,
+                  content: `You are extracting business-for-sale listings. Analyze this webpage content and extract ALL business listings you can find.
+
+For each listing, return:
+- company_name: The business name/title (REQUIRED)
+- asking_price: The sale price if shown
+- location: UK city/region
+- industry: Type of business
+- revenue: Annual turnover if mentioned
+- profit: Annual profit if mentioned  
+- description: Brief business description
+
+Return a JSON object with format: {"listings": [...]}
+
+Here is the webpage content from ${sourceConfig.name}:
+
+${markdown.substring(0, 15000)}`,
                 },
               ],
-              tools: [
-                {
-                  type: "function",
-                  function: {
-                    name: "extract_listings",
-                    description: "Extract structured business listings",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        listings: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              company_name: { type: "string" },
-                              asking_price: { type: "string" },
-                              location: { type: "string" },
-                              industry: { type: "string" },
-                              revenue: { type: "string" },
-                              profit: { type: "string" },
-                              net_assets: { type: "string" },
-                              description: { type: "string" },
-                              source_url: { type: "string" },
-                            },
-                            required: ["company_name"],
-                          },
-                        },
-                      },
-                      required: ["listings"],
-                    },
-                  },
-                },
-              ],
-              tool_choice: { type: "function", function: { name: "extract_listings" } },
             }),
           });
 
           if (aiResponse.ok) {
             const aiData = await aiResponse.json();
-            const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+            const content = aiData.choices?.[0]?.message?.content || "";
+            console.log("AI response preview:", content.substring(0, 300));
             
-            if (toolCall?.function?.arguments) {
-              try {
-                const parsed = JSON.parse(toolCall.function.arguments);
+            // Try to extract JSON from the response
+            try {
+              // Look for JSON in the response
+              const jsonMatch = content.match(/\{[\s\S]*"listings"[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
                 deals = parsed.listings || [];
-              } catch (e) {
-                console.error("Failed to parse AI response:", e);
+              } else if (content.includes("[")) {
+                // Try to find array directly
+                const arrayMatch = content.match(/\[[\s\S]*\]/);
+                if (arrayMatch) {
+                  deals = JSON.parse(arrayMatch[0]);
+                }
               }
+              console.log(`AI extracted ${deals.length} deals`);
+            } catch (e) {
+              console.error("Failed to parse AI response:", e, "Content:", content.substring(0, 500));
             }
           } else {
-            const errorText = await aiResponse.text();
-            console.error("AI API error:", aiResponse.status, errorText);
+            const errText = await aiResponse.text();
+            console.error("AI error:", aiResponse.status, errText);
           }
         }
 
-        // Step 3: Generate AI summaries for each deal
-        for (const deal of deals) {
-          if (LOVABLE_API_KEY && deal.description) {
+        // Step 3: Generate summaries (limit to 10)
+        const dealsToProcess = deals.slice(0, 10);
+        for (const deal of dealsToProcess) {
+          if (LOVABLE_API_KEY && deal.company_name) {
             try {
               const summaryResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
                 method: "POST",
@@ -227,15 +214,11 @@ serve(async (req) => {
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  model: "google/gemini-3-flash-preview",
+                  model: "google/gemini-2.5-flash-lite",
                   messages: [
                     {
-                      role: "system",
-                      content: "You are a business analyst. Provide a 2-3 sentence summary of this business opportunity, highlighting key investment considerations.",
-                    },
-                    {
                       role: "user",
-                      content: `Business: ${deal.company_name}\nIndustry: ${deal.industry || "Unknown"}\nLocation: ${deal.location || "UK"}\nAsking Price: ${deal.asking_price || "Not disclosed"}\nRevenue: ${deal.revenue || "Not disclosed"}\nDescription: ${deal.description}`,
+                      content: `Write a 2 sentence investment summary for: ${deal.company_name}, ${deal.industry || "business"} in ${deal.location || "UK"}. Price: ${deal.asking_price || "TBD"}. ${deal.description || ""}`,
                     },
                   ],
                 }),
@@ -246,17 +229,17 @@ serve(async (req) => {
                 deal.ai_summary = summaryData.choices?.[0]?.message?.content || null;
               }
             } catch (e) {
-              console.error("Summary generation error:", e);
+              console.error("Summary error:", e);
             }
           }
         }
 
-        // Step 4: Store deals in database
+        // Step 4: Store deals
         let insertedCount = 0;
-        for (const deal of deals) {
+        for (const deal of dealsToProcess) {
           if (!deal.company_name) continue;
 
-          const dealUrl = deal.source_url || `${sourceConfig.searchUrl}#${deal.company_name.replace(/\s+/g, "-").toLowerCase()}`;
+          const dealUrl = `${sourceConfig.searchUrl}#${encodeURIComponent(deal.company_name)}`;
 
           const { error: insertError } = await supabase.from("on_market_deals").upsert(
             {
@@ -279,10 +262,11 @@ serve(async (req) => {
 
           if (!insertError) {
             insertedCount++;
+          } else {
+            console.error("Insert error:", insertError);
           }
         }
 
-        // Update scrape log
         if (logId) {
           await supabase
             .from("scrape_logs")
@@ -301,7 +285,6 @@ serve(async (req) => {
         });
       } catch (sourceError) {
         console.error(`Error processing ${sourceConfig.name}:`, sourceError);
-        
         if (logId) {
           await supabase
             .from("scrape_logs")
@@ -312,7 +295,6 @@ serve(async (req) => {
             })
             .eq("id", logId);
         }
-
         results.push({
           source: sourceConfig.name,
           success: false,
@@ -321,9 +303,12 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const totalDeals = results.reduce((sum, r) => sum + (r.deals_found || 0), 0);
+
+    return new Response(
+      JSON.stringify({ success: true, results, deals_found: totalDeals }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (error) {
     console.error("Scrape error:", error);
     return new Response(
