@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, MapPin, Factory, Banknote, Filter, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, Lock, Mail } from "lucide-react";
+import { CompanyStatusSelect } from "@/components/CompanyStatusSelect";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,6 +183,14 @@ export default function MandateWorkspace() {
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
+  };
+
+  const handleCompanyStatusChange = (companyId: string, newStatus: string) => {
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id === companyId ? { ...company, status: newStatus } : company
+      )
+    );
   };
 
   const handleSort = (column: "revenue" | "profit_before_tax" | "net_assets" | "status") => {
@@ -475,9 +484,11 @@ export default function MandateWorkspace() {
                               {formatCurrency(company.net_assets)}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className={`status-badge border ${statusBadges[company.status || "new"]}`}>
-                                {company.status || "new"}
-                              </span>
+                              <CompanyStatusSelect
+                                companyId={company.id}
+                                currentStatus={company.status || "new"}
+                                onStatusChange={handleCompanyStatusChange}
+                              />
                             </td>
                           </tr>
                         ))}
