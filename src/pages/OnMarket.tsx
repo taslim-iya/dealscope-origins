@@ -69,7 +69,7 @@ const whatItIsNot = [
 
 export default function OnMarket() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [deals, setDeals] = useState<OnMarketDeal[]>([]);
@@ -78,10 +78,42 @@ export default function OnMarket() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [industryFilter, setIndustryFilter] = useState("all");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
 
-  // Fetch deals on mount - no auth required
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        setCheckingAdmin(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      setIsAdmin(!!data);
+      setCheckingAdmin(false);
+    };
+
+    if (!authLoading) {
+      checkAdminRole();
+    }
+  }, [user, authLoading]);
+
+  // Fetch deals on mount - only for admins
   useEffect(() => {
     const fetchDeals = async () => {
+      if (!isAdmin) {
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("on_market_deals")
         .select("*")
@@ -93,8 +125,10 @@ export default function OnMarket() {
       setLoading(false);
     };
 
-    fetchDeals();
-  }, []);
+    if (!checkingAdmin) {
+      fetchDeals();
+    }
+  }, [isAdmin, checkingAdmin]);
 
   const handleScrape = async (source?: string) => {
     if (!user) {
@@ -182,6 +216,113 @@ export default function OnMarket() {
     return matchesSearch && matchesSource && matchesIndustry;
   });
 
+  // Show loading while checking admin status
+  if (authLoading || checkingAdmin) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </Layout>
+    );
+  }
+
+  // Show Coming Soon for non-admins
+  if (!isAdmin) {
+    return (
+      <Layout>
+        {/* Hero */}
+        <section className="section-padding border-b border-border">
+          <div className="container-narrow">
+            <div className="max-w-2xl mx-auto text-center">
+              <span className="badge-coming-soon mb-6 inline-block">Coming Soon</span>
+              <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
+                On-Market Deal Intelligence
+              </h1>
+              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
+                AI-powered discovery of companies currently available for sale in the United Kingdom.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* What This Is / Is Not */}
+        <section className="section-padding">
+          <div className="container-wide">
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="card-elevated p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Layers className="h-5 w-5 text-foreground" />
+                  <h2 className="text-lg font-semibold text-foreground">What This Is</h2>
+                </div>
+                <ul className="space-y-3">
+                  {whatItIs.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-sm text-muted-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0 mt-2"></span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="card-elevated p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <XCircle className="h-5 w-5 text-muted-foreground" />
+                  <h2 className="text-lg font-semibold text-foreground">What This Is Not</h2>
+                </div>
+                <ul className="space-y-3">
+                  {whatItIsNot.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-sm text-muted-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground flex-shrink-0 mt-2"></span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works */}
+        <section className="section-padding bg-secondary/30 border-y border-border">
+          <div className="container-wide">
+            <div className="text-center mb-10">
+              <h2 className="text-2xl font-semibold text-foreground">How It Works</h2>
+              <p className="mt-2 text-muted-foreground">
+                AI-powered aggregation of UK business-for-sale listings.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="card-elevated p-6 text-center">
+                <Globe className="h-8 w-8 mx-auto text-primary mb-4" />
+                <h3 className="font-semibold text-foreground mb-2">Scrape</h3>
+                <p className="text-sm text-muted-foreground">
+                  Fetch listings from BizBuySell, BusinessesForSale, Daltons, and RightBiz.
+                </p>
+              </div>
+              <div className="card-elevated p-6 text-center">
+                <Sparkles className="h-8 w-8 mx-auto text-primary mb-4" />
+                <h3 className="font-semibold text-foreground mb-2">Analyze</h3>
+                <p className="text-sm text-muted-foreground">
+                  AI extracts company details, financials, and generates investment summaries.
+                </p>
+              </div>
+              <div className="card-elevated p-6 text-center">
+                <Filter className="h-8 w-8 mx-auto text-primary mb-4" />
+                <h3 className="font-semibold text-foreground mb-2">Filter</h3>
+                <p className="text-sm text-muted-foreground">
+                  Search and filter based on your acquisition criteria.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </Layout>
+    );
+  }
+
+  // Admin view - full functionality
   return (
     <Layout>
       {/* Hero */}
@@ -201,25 +342,19 @@ export default function OnMarket() {
                 {deals.length} listings from UK business-for-sale sources
               </p>
             </div>
-            {user ? (
-              <Button onClick={() => handleScrape()} disabled={scraping} className="gap-2">
-                {scraping ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Scraping...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    Scan All Sources
-                  </>
-                )}
-              </Button>
-            ) : (
-              <Button onClick={() => navigate("/login")} variant="outline" className="gap-2">
-                Log in to scan sources
-              </Button>
-            )}
+            <Button onClick={() => handleScrape()} disabled={scraping} className="gap-2">
+              {scraping ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Scraping...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Scan All Sources
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </section>
@@ -282,15 +417,9 @@ export default function OnMarket() {
                   : "Try adjusting your search or filters."}
               </p>
               {deals.length === 0 && (
-                user ? (
-                  <Button onClick={() => handleScrape()} disabled={scraping}>
-                    {scraping ? "Scraping..." : "Start First Scan"}
-                  </Button>
-                ) : (
-                  <Button onClick={() => navigate("/login")} variant="outline">
-                    Log in to scan sources
-                  </Button>
-                )
+                <Button onClick={() => handleScrape()} disabled={scraping}>
+                  {scraping ? "Scraping..." : "Start First Scan"}
+                </Button>
               )}
             </div>
           ) : (
