@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, 
-  Upload, 
   FileText, 
   Users, 
   Building2, 
   Loader2,
   CheckCircle,
   AlertCircle,
-  LogOut
+  LogOut,
+  Shield,
+  ShieldOff,
+  UserCog
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +57,10 @@ interface Domain {
   free_companies_remaining: number;
 }
 
+interface UserWithRole extends Profile {
+  isAdmin: boolean;
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, signOut } = useAuth();
@@ -71,6 +77,8 @@ export default function AdminDashboard() {
     success: boolean;
     message: string;
   } | null>(null);
+  const [allUsers, setAllUsers] = useState<UserWithRole[]>([]);
+  const [loadingRoleChange, setLoadingRoleChange] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -148,6 +156,29 @@ export default function AdminDashboard() {
 
       if (domainsData) {
         setDomains(domainsData);
+      }
+
+      // Fetch all users with their admin status
+      const { data: allProfilesData } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, company_name")
+        .order("email");
+
+      if (allProfilesData) {
+        // Fetch all admin roles
+        const { data: adminRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", "admin");
+
+        const adminUserIds = new Set(adminRoles?.map((r) => r.user_id) || []);
+
+        setAllUsers(
+          allProfilesData.map((p) => ({
+            ...p,
+            isAdmin: adminUserIds.has(p.id),
+          }))
+        );
       }
     };
 
@@ -232,6 +263,66 @@ export default function AdminDashboard() {
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
+  };
+
+  const handleToggleAdmin = async (targetUserId: string, currentlyAdmin: boolean) => {
+    if (targetUserId === user?.id) {
+      toast({
+        title: "Action not allowed",
+        description: "You cannot change your own admin status.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoadingRoleChange(targetUserId);
+
+    try {
+      if (currentlyAdmin) {
+        // Revoke admin role
+        const { error } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", targetUserId)
+          .eq("role", "admin");
+
+        if (error) throw error;
+
+        setAllUsers((prev) =>
+          prev.map((u) => (u.id === targetUserId ? { ...u, isAdmin: false } : u))
+        );
+
+        toast({
+          title: "Admin role revoked",
+          description: "User no longer has admin privileges.",
+        });
+      } else {
+        // Grant admin role
+        const { error } = await supabase
+          .from("user_roles")
+          .insert({ user_id: targetUserId, role: "admin" });
+
+        if (error) throw error;
+
+        setAllUsers((prev) =>
+          prev.map((u) => (u.id === targetUserId ? { ...u, isAdmin: true } : u))
+        );
+
+        toast({
+          title: "Admin role granted",
+          description: "User now has admin privileges.",
+        });
+      }
+    } catch (error) {
+      console.error("Role change error:", error);
+      toast({
+        title: "Failed to update role",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRoleChange(null);
+    }
   };
 
   if (authLoading || checkingAdmin) {
@@ -391,6 +482,103 @@ export default function AdminDashboard() {
                       <AlertCircle className="h-4 w-4" />
                     )}
                     <span className="text-sm">{uploadResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* User Management Section */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserCog className="h-5 w-5" />
+                User Management
+              </CardTitle>
+              <CardDescription>
+                Grant or revoke admin privileges for users
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="table-container">
+                <table className="w-full">
+                  <thead className="bg-secondary/50">
+                    <tr>
+                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
+                        User
+                      </th>
+                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+                        Company
+                      </th>
+                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
+                        Role
+                      </th>
+                      <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {allUsers.map((u) => (
+                      <tr key={u.id} className="hover:bg-secondary/30 transition-colors">
+                        <td className="px-4 py-4">
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {u.full_name || "No name"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-muted-foreground hidden md:table-cell">
+                          {u.company_name || "—"}
+                        </td>
+                        <td className="px-4 py-4">
+                          {u.isAdmin ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                              <Shield className="h-3 w-3" />
+                              Admin
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-secondary text-muted-foreground">
+                              User
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          {u.id === user?.id ? (
+                            <span className="text-xs text-muted-foreground">You</span>
+                          ) : (
+                            <Button
+                              variant={u.isAdmin ? "outline" : "default"}
+                              size="sm"
+                              onClick={() => handleToggleAdmin(u.id, u.isAdmin)}
+                              disabled={loadingRoleChange === u.id}
+                            >
+                              {loadingRoleChange === u.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : u.isAdmin ? (
+                                <>
+                                  <ShieldOff className="h-3 w-3 mr-1" />
+                                  Revoke
+                                </>
+                              ) : (
+                                <>
+                                  <Shield className="h-3 w-3 mr-1" />
+                                  Make Admin
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {allUsers.length === 0 && (
+                  <div className="p-12 text-center">
+                    <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">No users found</p>
                   </div>
                 )}
               </div>
