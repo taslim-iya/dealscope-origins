@@ -177,6 +177,60 @@ export type Database = {
           },
         ]
       }
+      on_market_deals: {
+        Row: {
+          ai_summary: string | null
+          asking_price: string | null
+          company_name: string
+          created_at: string
+          description: string | null
+          id: string
+          industry: string | null
+          location: string | null
+          net_assets: string | null
+          profit: string | null
+          revenue: string | null
+          scraped_at: string
+          source: string
+          source_url: string
+          user_id: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          asking_price?: string | null
+          company_name: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          location?: string | null
+          net_assets?: string | null
+          profit?: string | null
+          revenue?: string | null
+          scraped_at?: string
+          source: string
+          source_url: string
+          user_id: string
+        }
+        Update: {
+          ai_summary?: string | null
+          asking_price?: string | null
+          company_name?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          location?: string | null
+          net_assets?: string | null
+          profit?: string | null
+          revenue?: string | null
+          scraped_at?: string
+          source?: string
+          source_url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company_name: string | null
@@ -217,6 +271,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      scrape_logs: {
+        Row: {
+          completed_at: string | null
+          deals_found: number
+          error_message: string | null
+          id: string
+          source: string
+          started_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          deals_found?: number
+          error_message?: string | null
+          id?: string
+          source: string
+          started_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          deals_found?: number
+          error_message?: string | null
+          id?: string
+          source?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
