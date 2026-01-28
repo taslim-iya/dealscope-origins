@@ -28,7 +28,7 @@ function parseCSV(csvText: string): CompanyRow[] {
   const lines = csvText.trim().split("\n");
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
+  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, "").replace(/\s+/g, "_"));
   const companies: CompanyRow[] = [];
 
   for (let i = 1; i < lines.length; i++) {
