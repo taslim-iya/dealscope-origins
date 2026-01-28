@@ -16,37 +16,61 @@ export type Database = {
     Tables: {
       companies: {
         Row: {
+          address: string | null
           asset_band: string | null
+          companies_house_number: string | null
           company_name: string
           created_at: string
+          description_of_activities: string | null
           geography: string | null
           id: string
           industry: string | null
           mandate_id: string
+          net_assets: number | null
+          profit_before_tax: number | null
+          revenue: number | null
           revenue_band: string | null
           status: string | null
+          total_assets: number | null
+          website: string | null
         }
         Insert: {
+          address?: string | null
           asset_band?: string | null
+          companies_house_number?: string | null
           company_name: string
           created_at?: string
+          description_of_activities?: string | null
           geography?: string | null
           id?: string
           industry?: string | null
           mandate_id: string
+          net_assets?: number | null
+          profit_before_tax?: number | null
+          revenue?: number | null
           revenue_band?: string | null
           status?: string | null
+          total_assets?: number | null
+          website?: string | null
         }
         Update: {
+          address?: string | null
           asset_band?: string | null
+          companies_house_number?: string | null
           company_name?: string
           created_at?: string
+          description_of_activities?: string | null
           geography?: string | null
           id?: string
           industry?: string | null
           mandate_id?: string
+          net_assets?: number | null
+          profit_before_tax?: number | null
+          revenue?: number | null
           revenue_band?: string | null
           status?: string | null
+          total_assets?: number | null
+          website?: string | null
         }
         Relationships: [
           {
