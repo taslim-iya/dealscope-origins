@@ -38,6 +38,7 @@ interface Company {
   revenue_band: string | null;
   asset_band: string | null;
   status: string | null;
+  revenue: number | null;
 }
 
 const statusOptions = [
@@ -61,9 +62,12 @@ const mandateStatusLabels = {
 
 const formatCurrency = (value: number | null): string => {
   if (value === null) return "—";
-  if (value >= 1000000) return `£${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `£${(value / 1000).toFixed(0)}K`;
-  return `£${value}`;
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
 };
 
 export default function MandateWorkspace() {
@@ -310,13 +314,19 @@ export default function MandateWorkspace() {
                   </thead>
                   <tbody className="divide-y divide-border bg-background">
                     {filteredCompanies.map((company) => (
-                      <tr key={company.id} className="hover:bg-secondary/30 transition-colors">
+                      <tr
+                        key={company.id}
+                        className="hover:bg-secondary/30 transition-colors cursor-pointer"
+                        onClick={() => navigate(`/company/${company.id}`)}
+                      >
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
                             <div className="p-2 rounded-md bg-secondary">
                               <Building2 className="h-4 w-4 text-foreground" />
                             </div>
-                            <span className="font-medium text-foreground">{company.company_name}</span>
+                            <span className="font-medium text-foreground hover:text-primary">
+                              {company.company_name}
+                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-4 text-sm text-muted-foreground hidden sm:table-cell">
@@ -326,7 +336,7 @@ export default function MandateWorkspace() {
                           {company.industry || "—"}
                         </td>
                         <td className="px-4 py-4 text-sm text-foreground">
-                          {company.revenue_band || "—"}
+                          {company.revenue ? formatCurrency(company.revenue) : company.revenue_band || "—"}
                         </td>
                         <td className="px-4 py-4">
                           <span
