@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, Lock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -76,6 +77,7 @@ export default function MandateWorkspace() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { toast } = useToast();
   const [mandate, setMandate] = useState<Mandate | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +85,46 @@ export default function MandateWorkspace() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortColumn, setSortColumn] = useState<"revenue" | "total_assets" | "net_assets" | "status" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  const isPaidUser = profile?.is_paid ?? false;
+
+  const handleExportCSV = () => {
+    if (!isPaidUser) {
+      toast({
+        title: "Paid feature",
+        description: "CSV export is available for paid subscribers only.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const headers = ["Company Name", "Industry", "Location", "Revenue", "Total Assets", "Net Assets", "Status"];
+    const rows = filteredAndSortedCompanies.map((company) => [
+      company.company_name,
+      company.industry || "",
+      company.geography || "",
+      company.revenue?.toString() || "",
+      company.total_assets?.toString() || "",
+      company.net_assets?.toString() || "",
+      company.status || "new",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${mandate?.name || "companies"}-export.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    toast({
+      title: "Export complete",
+      description: `Exported ${filteredAndSortedCompanies.length} companies to CSV.`,
+    });
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -320,20 +362,35 @@ export default function MandateWorkspace() {
                     className="max-w-xs"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[160px]">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    variant={isPaidUser ? "outline" : "secondary"}
+                    size="sm"
+                    onClick={handleExportCSV}
+                    className="gap-2"
+                  >
+                    {isPaidUser ? (
+                      <Download className="h-4 w-4" />
+                    ) : (
+                      <Lock className="h-4 w-4" />
+                    )}
+                    Export CSV
+                  </Button>
                 </div>
               </div>
 
