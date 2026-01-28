@@ -8,7 +8,6 @@ const navigation = [
   { name: "Home", href: "/" },
   { name: "Off-Market Origination", href: "/off-market" },
   { name: "On-Market Deal Intelligence", href: "/on-market", comingSoon: true },
-  { name: "Platform", href: "/platform" },
   { name: "Pricing", href: "/pricing" },
   { name: "About", href: "/about" },
 ];
