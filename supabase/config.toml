@@ -2,3 +2,6 @@ project_id = "klxgsbrlwnwvelsctsan"
 
 [functions.scrape-deals]
 verify_jwt = false
+
+[functions.generate-outreach]
+verify_jwt = false

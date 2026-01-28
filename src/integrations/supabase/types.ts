@@ -115,6 +115,7 @@ export type Database = {
           net_assets_max: number | null
           net_assets_min: number | null
           notes: string | null
+          outreach_preference: string | null
           regions: string[] | null
           revenue_max: number | null
           revenue_min: number | null
@@ -136,6 +137,7 @@ export type Database = {
           net_assets_max?: number | null
           net_assets_min?: number | null
           notes?: string | null
+          outreach_preference?: string | null
           regions?: string[] | null
           revenue_max?: number | null
           revenue_min?: number | null
@@ -157,6 +159,7 @@ export type Database = {
           net_assets_max?: number | null
           net_assets_min?: number | null
           notes?: string | null
+          outreach_preference?: string | null
           regions?: string[] | null
           revenue_max?: number | null
           revenue_min?: number | null
@@ -230,6 +233,63 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      outreach_messages: {
+        Row: {
+          body: string
+          company_id: string
+          created_at: string
+          id: string
+          mandate_id: string
+          recipient_email: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          company_id: string
+          created_at?: string
+          id?: string
+          mandate_id: string
+          recipient_email?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          mandate_id?: string
+          recipient_email?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_messages_mandate_id_fkey"
+            columns: ["mandate_id"]
+            isOneToOne: false
+            referencedRelation: "mandates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
