@@ -14,16 +14,193 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      companies: {
+        Row: {
+          asset_band: string | null
+          company_name: string
+          created_at: string
+          geography: string | null
+          id: string
+          industry: string | null
+          mandate_id: string
+          revenue_band: string | null
+          status: string | null
+        }
+        Insert: {
+          asset_band?: string | null
+          company_name: string
+          created_at?: string
+          geography?: string | null
+          id?: string
+          industry?: string | null
+          mandate_id: string
+          revenue_band?: string | null
+          status?: string | null
+        }
+        Update: {
+          asset_band?: string | null
+          company_name?: string
+          created_at?: string
+          geography?: string | null
+          id?: string
+          industry?: string | null
+          mandate_id?: string
+          revenue_band?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companies_mandate_id_fkey"
+            columns: ["mandate_id"]
+            isOneToOne: false
+            referencedRelation: "mandates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      domains: {
+        Row: {
+          created_at: string
+          domain_name: string
+          free_companies_remaining: number
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          domain_name: string
+          free_companies_remaining?: number
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          domain_name?: string
+          free_companies_remaining?: number
+          id?: string
+        }
+        Relationships: []
+      }
+      mandates: {
+        Row: {
+          companies_delivered: number
+          country: string
+          created_at: string
+          domain_id: string | null
+          id: string
+          industry_description: string | null
+          name: string
+          net_assets_max: number | null
+          net_assets_min: number | null
+          notes: string | null
+          regions: string[] | null
+          revenue_max: number | null
+          revenue_min: number | null
+          sic_codes: string | null
+          status: Database["public"]["Enums"]["mandate_status"]
+          total_assets_max: number | null
+          total_assets_min: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          companies_delivered?: number
+          country?: string
+          created_at?: string
+          domain_id?: string | null
+          id?: string
+          industry_description?: string | null
+          name: string
+          net_assets_max?: number | null
+          net_assets_min?: number | null
+          notes?: string | null
+          regions?: string[] | null
+          revenue_max?: number | null
+          revenue_min?: number | null
+          sic_codes?: string | null
+          status?: Database["public"]["Enums"]["mandate_status"]
+          total_assets_max?: number | null
+          total_assets_min?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          companies_delivered?: number
+          country?: string
+          created_at?: string
+          domain_id?: string | null
+          id?: string
+          industry_description?: string | null
+          name?: string
+          net_assets_max?: number | null
+          net_assets_min?: number | null
+          notes?: string | null
+          regions?: string[] | null
+          revenue_max?: number | null
+          revenue_min?: number | null
+          sic_codes?: string | null
+          status?: Database["public"]["Enums"]["mandate_status"]
+          total_assets_max?: number | null
+          total_assets_min?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mandates_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          domain_id: string | null
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          domain_id?: string | null
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          domain_id?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      extract_email_domain: { Args: { email: string }; Returns: string }
+      get_user_domain_id: { Args: { user_uuid: string }; Returns: string }
     }
     Enums: {
-      [_ in never]: never
+      mandate_status: "draft" | "active" | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +327,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      mandate_status: ["draft", "active", "completed"],
+    },
   },
 } as const
