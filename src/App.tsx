@@ -7,7 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Home from "./pages/Home";
 import OffMarket from "./pages/OffMarket";
 import OnMarket from "./pages/OnMarket";
-import Platform from "./pages/Platform";
+
 import Pricing from "./pages/Pricing";
 import About from "./pages/About";
 import Login from "./pages/Login";
@@ -35,7 +35,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/off-market" element={<OffMarket />} />
             <Route path="/on-market" element={<OnMarket />} />
-            <Route path="/platform" element={<Platform />} />
+            
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
