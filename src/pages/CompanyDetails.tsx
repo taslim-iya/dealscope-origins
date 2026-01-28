@@ -15,12 +15,20 @@ import {
   LogOut,
   Loader2,
   ExternalLink,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Company {
   id: string;
@@ -47,11 +55,11 @@ interface Mandate {
   name: string;
 }
 
-const statusBadges: Record<string, string> = {
-  new: "bg-blue-50 text-blue-700 border-blue-200",
-  reviewed: "bg-slate-100 text-slate-600 border-slate-200",
-  shortlisted: "bg-emerald-50 text-emerald-700 border-emerald-200",
-};
+const statusOptions = [
+  { value: "new", label: "New", className: "bg-blue-50 text-blue-700 border-blue-200" },
+  { value: "reviewed", label: "Reviewed", className: "bg-slate-100 text-slate-600 border-slate-200" },
+  { value: "shortlisted", label: "Shortlisted", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+];
 
 const formatCurrency = (value: number | null): string => {
   if (value === null) return "—";
@@ -66,9 +74,11 @@ export default function CompanyDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
   const [mandate, setMandate] = useState<Mandate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -116,6 +126,31 @@ export default function CompanyDetails() {
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!company) return;
+    
+    setUpdatingStatus(true);
+    const { error } = await supabase
+      .from("companies")
+      .update({ status: newStatus })
+      .eq("id", company.id);
+
+    if (error) {
+      toast({
+        title: "Error updating status",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setCompany({ ...company, status: newStatus });
+      toast({
+        title: "Status updated",
+        description: `Company status changed to ${newStatus}`,
+      });
+    }
+    setUpdatingStatus(false);
   };
 
   if (authLoading || loading) {
@@ -175,13 +210,33 @@ export default function CompanyDetails() {
                 </p>
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className={statusBadges[company.status || "new"] || statusBadges.new}
-            >
-              {(company.status || "new").charAt(0).toUpperCase() +
-                (company.status || "new").slice(1)}
-            </Badge>
+            <div className="flex items-center gap-4">
+              <Select
+                value={company.status || "new"}
+                onValueChange={handleStatusChange}
+                disabled={updatingStatus}
+              >
+                <SelectTrigger className={`w-[140px] ${statusOptions.find(s => s.value === (company.status || "new"))?.className || ""}`}>
+                  {updatingStatus ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SelectValue />
+                  )}
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border">
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex items-center gap-2">
+                        {company.status === option.value && (
+                          <Check className="h-3 w-3" />
+                        )}
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
