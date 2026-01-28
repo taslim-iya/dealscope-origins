@@ -1,20 +1,42 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LogOut, Search, Target } from "lucide-react";
+import { LogOut, Search, Target, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardHeaderProps {
   email?: string;
   onSignOut: () => void;
 }
 
-const tabs = [
-  { name: "Off-Market", href: "/dashboard", icon: Target },
-  { name: "On-Market", href: "/on-market", icon: Search },
-];
-
 export function DashboardHeader({ email, onSignOut }: DashboardHeaderProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      setIsAdmin(!!data);
+    };
+
+    checkAdminRole();
+  }, [user]);
+
+  const tabs = [
+    { name: "Off-Market", href: "/dashboard", icon: Target, adminOnly: false },
+    { name: "On-Market", href: "/on-market", icon: Search, adminOnly: true },
+  ];
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
@@ -46,6 +68,11 @@ export function DashboardHeader({ email, onSignOut }: DashboardHeaderProps) {
               >
                 <tab.icon className="h-4 w-4" />
                 {tab.name}
+                {tab.adminOnly && !isAdmin && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground rounded">
+                    Soon
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
@@ -78,6 +105,11 @@ export function DashboardHeader({ email, onSignOut }: DashboardHeaderProps) {
             >
               <tab.icon className="h-4 w-4" />
               {tab.name}
+              {tab.adminOnly && !isAdmin && (
+                <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground rounded">
+                  Soon
+                </span>
+              )}
             </Link>
           ))}
         </nav>

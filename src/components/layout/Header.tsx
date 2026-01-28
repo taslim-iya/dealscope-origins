@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Home", href: "/" },
-  { name: "Off-Market Origination", href: "/off-market" },
-  { name: "On-Market Deal Intelligence", href: "/on-market" },
-  { name: "Pricing", href: "/pricing" },
-  { name: "About", href: "/about" },
+  { name: "Home", href: "/", comingSoon: false },
+  { name: "Off-Market Origination", href: "/off-market", comingSoon: false },
+  { name: "On-Market Deal Intelligence", href: "/on-market", comingSoon: true },
+  { name: "Pricing", href: "/pricing", comingSoon: false },
+  { name: "About", href: "/about", comingSoon: false },
 ];
 
 export function Header() {
@@ -40,6 +40,11 @@ export function Header() {
               >
                 <span className="flex items-center gap-1.5">
                   {item.name}
+                  {item.comingSoon && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground rounded">
+                      Soon
+                    </span>
+                  )}
                 </span>
               </Link>
             ))}
@@ -82,6 +87,11 @@ export function Header() {
               >
                 <span className="flex items-center gap-2">
                   {item.name}
+                  {item.comingSoon && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground rounded">
+                      Soon
+                    </span>
+                  )}
                 </span>
               </Link>
             ))}
