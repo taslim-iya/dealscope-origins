@@ -237,11 +237,17 @@ export type Database = {
       outreach_messages: {
         Row: {
           body: string
+          closed_at: string | null
           company_id: string
           created_at: string
           id: string
           mandate_id: string
+          meeting_scheduled_at: string | null
+          notes: string | null
+          opened_at: string | null
+          outcome: string | null
           recipient_email: string | null
+          replied_at: string | null
           sent_at: string | null
           status: string
           subject: string
@@ -250,11 +256,17 @@ export type Database = {
         }
         Insert: {
           body: string
+          closed_at?: string | null
           company_id: string
           created_at?: string
           id?: string
           mandate_id: string
+          meeting_scheduled_at?: string | null
+          notes?: string | null
+          opened_at?: string | null
+          outcome?: string | null
           recipient_email?: string | null
+          replied_at?: string | null
           sent_at?: string | null
           status?: string
           subject: string
@@ -263,11 +275,17 @@ export type Database = {
         }
         Update: {
           body?: string
+          closed_at?: string | null
           company_id?: string
           created_at?: string
           id?: string
           mandate_id?: string
+          meeting_scheduled_at?: string | null
+          notes?: string | null
+          opened_at?: string | null
+          outcome?: string | null
           recipient_email?: string | null
+          replied_at?: string | null
           sent_at?: string | null
           status?: string
           subject?: string
