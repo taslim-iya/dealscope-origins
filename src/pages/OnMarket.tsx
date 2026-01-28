@@ -84,6 +84,11 @@ export default function OnMarket() {
   // Check if user is admin
   useEffect(() => {
     const checkAdminRole = async () => {
+      // Wait for auth to finish loading
+      if (authLoading) {
+        return;
+      }
+
       if (!user) {
         setIsAdmin(false);
         setCheckingAdmin(false);
@@ -101,9 +106,7 @@ export default function OnMarket() {
       setCheckingAdmin(false);
     };
 
-    if (!authLoading) {
-      checkAdminRole();
-    }
+    checkAdminRole();
   }, [user, authLoading]);
 
   // Fetch deals on mount - only for admins
