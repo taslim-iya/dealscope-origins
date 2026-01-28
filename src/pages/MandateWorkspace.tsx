@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, MapPin, Factory, Banknote, Filter, LogOut, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,6 +39,8 @@ interface Company {
   asset_band: string | null;
   status: string | null;
   revenue: number | null;
+  total_assets: number | null;
+  net_assets: number | null;
 }
 
 const statusOptions = [
@@ -291,56 +293,67 @@ export default function MandateWorkspace() {
               </div>
 
               {/* Companies Table */}
-              <div className="table-container">
-                <table className="w-full">
-                  <thead className="bg-secondary/50">
+              <div className="table-container border border-border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 border-b border-border">
                     <tr>
                       <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
                         Company
                       </th>
+                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">
+                        Industry
+                      </th>
                       <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden sm:table-cell">
                         Location
                       </th>
-                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
-                        Industry
-                      </th>
-                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
+                      <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
                         Revenue
                       </th>
-                      <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3">
+                      <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+                        Total Assets
+                      </th>
+                      <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">
+                        Net Assets
+                      </th>
+                      <th className="text-center text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 py-3 w-24">
                         Status
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border bg-background">
-                    {filteredCompanies.map((company) => (
+                    {filteredCompanies.map((company, index) => (
                       <tr
                         key={company.id}
-                        className="hover:bg-secondary/30 transition-colors cursor-pointer"
+                        className={`hover:bg-muted/30 transition-colors cursor-pointer ${
+                          index % 2 === 0 ? "bg-background" : "bg-muted/10"
+                        }`}
                         onClick={() => navigate(`/company/${company.id}`)}
                       >
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-md bg-secondary">
-                              <Building2 className="h-4 w-4 text-foreground" />
-                            </div>
-                            <span className="font-medium text-foreground hover:text-primary">
-                              {company.company_name}
-                            </span>
-                          </div>
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-foreground hover:text-primary">
+                            {company.company_name}
+                          </span>
                         </td>
-                        <td className="px-4 py-4 text-sm text-muted-foreground hidden sm:table-cell">
-                          {company.geography || "—"}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-muted-foreground hidden md:table-cell">
+                        <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
                           {company.industry || "—"}
                         </td>
-                        <td className="px-4 py-4 text-sm text-foreground">
+                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                          {company.geography || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-foreground">
                           {company.revenue ? formatCurrency(company.revenue) : company.revenue_band || "—"}
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-3 text-right font-mono text-muted-foreground hidden md:table-cell">
+                          {company.total_assets ? formatCurrency(company.total_assets) : company.asset_band || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-muted-foreground hidden md:table-cell">
+                          {company.net_assets ? formatCurrency(company.net_assets) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-center">
                           <span
-                            className={`status-badge ${statusBadges[company.status || "new"] || statusBadges.new}`}
+                            className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${
+                              statusBadges[company.status || "new"] || statusBadges.new
+                            }`}
                           >
                             {(company.status || "new").charAt(0).toUpperCase() + (company.status || "new").slice(1)}
                           </span>
@@ -351,7 +364,7 @@ export default function MandateWorkspace() {
                 </table>
 
                 {filteredCompanies.length === 0 && (
-                  <div className="p-12 text-center">
+                  <div className="p-12 text-center bg-background">
                     <p className="text-muted-foreground">No companies match your filters.</p>
                   </div>
                 )}
