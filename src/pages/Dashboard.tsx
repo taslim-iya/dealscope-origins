@@ -1,31 +1,18 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Plus, FileText, ChevronRight, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Plus, FileText, ChevronRight, LogOut, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
-// Mock data - will be replaced with real data from backend
-const mockMandates = [
-  {
-    id: "1",
-    name: "UK Manufacturing Targets",
-    status: "active" as const,
-    companiesDelivered: 12,
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Software Services SME",
-    status: "draft" as const,
-    companiesDelivered: 0,
-    createdAt: "2024-01-18",
-  },
-];
-
-const freeAllowance = {
-  used: 12,
-  total: 20,
-};
+interface Mandate {
+  id: string;
+  name: string;
+  status: "draft" | "active" | "completed";
+  companies_delivered: number;
+  created_at: string;
+}
 
 const statusLabels = {
   draft: { label: "Draft", className: "status-draft" },
@@ -34,7 +21,60 @@ const statusLabels = {
 };
 
 export default function Dashboard() {
-  const [mandates] = useState(mockMandates);
+  const navigate = useNavigate();
+  const { user, profile, domain, loading: authLoading, signOut } = useAuth();
+  const [mandates, setMandates] = useState<Mandate[]>([]);
+  const [loadingMandates, setLoadingMandates] = useState(true);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [authLoading, user, navigate]);
+
+  useEffect(() => {
+    const fetchMandates = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("mandates")
+        .select("id, name, status, companies_delivered, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setMandates(data as Mandate[]);
+      }
+      setLoadingMandates(false);
+    };
+
+    if (user) {
+      fetchMandates();
+    }
+  }, [user]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const freeAllowance = {
+    remaining: domain?.free_companies_remaining ?? 20,
+    total: 20,
+  };
+  const used = freeAllowance.total - freeAllowance.remaining;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -46,13 +86,11 @@ export default function Dashboard() {
           </Link>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:block">
-              john@acmecapital.com
+              {profile?.email || user.email}
             </span>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/">
-                <LogOut className="h-4 w-4 mr-2" />
-                Log out
-              </Link>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Log out
             </Button>
           </div>
         </div>
@@ -83,19 +121,19 @@ export default function Dashboard() {
               <div>
                 <h2 className="font-medium text-foreground">Domain Free Allowance</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Shared across all users at acmecapital.com
+                  Shared across all users at {domain?.domain_name || "your domain"}
                 </p>
               </div>
               <div className="text-right">
                 <span className="text-2xl font-semibold text-foreground">
-                  {freeAllowance.total - freeAllowance.used}
+                  {freeAllowance.remaining}
                 </span>
                 <span className="text-muted-foreground"> / {freeAllowance.total} remaining</span>
               </div>
             </div>
             <div className="mt-4">
               <Progress 
-                value={(freeAllowance.used / freeAllowance.total) * 100} 
+                value={(used / freeAllowance.total) * 100} 
                 className="h-2"
               />
             </div>
@@ -107,7 +145,11 @@ export default function Dashboard() {
               <h2 className="font-medium text-foreground">Your Mandates</h2>
             </div>
 
-            {mandates.length === 0 ? (
+            {loadingMandates ? (
+              <div className="p-12 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : mandates.length === 0 ? (
               <div className="p-12 text-center">
                 <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
                 <h3 className="font-medium text-foreground mb-1">No mandates yet</h3>
@@ -136,7 +178,7 @@ export default function Dashboard() {
                       <div>
                         <h3 className="font-medium text-foreground">{mandate.name}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {mandate.companiesDelivered} companies delivered
+                          {mandate.companies_delivered} companies delivered
                         </p>
                       </div>
                     </div>

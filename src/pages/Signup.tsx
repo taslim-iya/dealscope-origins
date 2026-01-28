@@ -4,9 +4,13 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Signup() {
   const navigate = useNavigate();
+  const { signUp } = useAuth();
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
     company: "",
@@ -37,11 +41,28 @@ export default function Signup() {
     }
 
     setIsLoading(true);
-    
-    // Simulate signup - will be replaced with actual auth
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Navigate to dashboard after signup
+
+    const { error } = await signUp(
+      formData.email,
+      formData.password,
+      formData.name,
+      formData.company
+    );
+
+    if (error) {
+      toast({
+        title: "Signup failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    toast({
+      title: "Account created",
+      description: "Welcome to DealScope! Your organisation starts with 20 free companies.",
+    });
     navigate("/dashboard");
     setIsLoading(false);
   };
