@@ -8,6 +8,7 @@ interface Profile {
   full_name: string | null;
   company_name: string | null;
   domain_id: string | null;
+  is_paid: boolean;
 }
 
 interface Domain {
