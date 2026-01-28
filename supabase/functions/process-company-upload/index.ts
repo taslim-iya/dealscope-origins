@@ -14,6 +14,14 @@ interface CompanyRow {
   revenue_band?: string;
   asset_band?: string;
   status?: string;
+  description_of_activities?: string;
+  companies_house_number?: string;
+  website?: string;
+  address?: string;
+  revenue?: number;
+  profit_before_tax?: number;
+  net_assets?: number;
+  total_assets?: number;
 }
 
 function parseCSV(csvText: string): CompanyRow[] {
@@ -31,6 +39,14 @@ function parseCSV(csvText: string): CompanyRow[] {
     headers.forEach((header, idx) => {
       row[header] = values[idx] || "";
     });
+
+    // Helper to parse numeric values
+    const parseNumeric = (value: string | undefined): number | undefined => {
+      if (!value) return undefined;
+      const cleaned = value.replace(/[£$,\s]/g, "");
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? undefined : num;
+    };
 
     // Map common header variations
     const company: CompanyRow = {
@@ -51,16 +67,50 @@ function parseCSV(csvText: string): CompanyRow[] {
         row["sector"] ||
         row["sic_description"] ||
         undefined,
-      revenue_band:
-        row["revenue_band"] ||
+      description_of_activities:
+        row["description_of_activities"] ||
+        row["description"] ||
+        row["activities"] ||
+        row["business_description"] ||
+        undefined,
+      companies_house_number:
+        row["companies_house_number"] ||
+        row["company_number"] ||
+        row["ch_number"] ||
+        row["registration_number"] ||
+        undefined,
+      website:
+        row["website"] ||
+        row["url"] ||
+        row["web"] ||
+        undefined,
+      address:
+        row["address"] ||
+        row["registered_address"] ||
+        row["location"] ||
+        undefined,
+      revenue: parseNumeric(
         row["revenue"] ||
         row["turnover"] ||
-        undefined,
-      asset_band:
-        row["asset_band"] ||
-        row["assets"] ||
+        row["sales"]
+      ),
+      profit_before_tax: parseNumeric(
+        row["profit_before_tax"] ||
+        row["pbt"] ||
+        row["profit"]
+      ),
+      net_assets: parseNumeric(
+        row["net_assets"] ||
+        row["net_asset_value"] ||
+        row["nav"]
+      ),
+      total_assets: parseNumeric(
         row["total_assets"] ||
-        undefined,
+        row["assets"] ||
+        row["total_asset_value"]
+      ),
+      revenue_band: row["revenue_band"] || undefined,
+      asset_band: row["asset_band"] || undefined,
       status: row["status"] || "new",
     };
 
@@ -159,6 +209,14 @@ serve(async (req) => {
       company_name: c.company_name,
       geography: c.geography || null,
       industry: c.industry || null,
+      description_of_activities: c.description_of_activities || null,
+      companies_house_number: c.companies_house_number || null,
+      website: c.website || null,
+      address: c.address || null,
+      revenue: c.revenue || null,
+      profit_before_tax: c.profit_before_tax || null,
+      net_assets: c.net_assets || null,
+      total_assets: c.total_assets || null,
       revenue_band: c.revenue_band || null,
       asset_band: c.asset_band || null,
       status: c.status || "new",
