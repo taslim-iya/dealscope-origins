@@ -16,6 +16,7 @@ import AdminSignup from "./pages/AdminSignup";
 import Dashboard from "./pages/Dashboard";
 import CreateMandate from "./pages/CreateMandate";
 import MandateWorkspace from "./pages/MandateWorkspace";
+import CompanyDetails from "./pages/CompanyDetails";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/mandate/create" element={<CreateMandate />} />
             <Route path="/mandate/:id" element={<MandateWorkspace />} />
+            <Route path="/company/:id" element={<CompanyDetails />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
