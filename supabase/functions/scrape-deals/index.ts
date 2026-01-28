@@ -7,23 +7,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// UK business listing sources with direct search result pages
+// UK business listing sources - using specific category pages for better results
 const SOURCES = [
   {
-    name: "BusinessesForSale.com",
-    searchUrl: "https://www.businessesforsale.com/search/businesses-for-sale/united-kingdom",
+    name: "BusinessesForSale UK",
+    searchUrl: "https://uk.businessesforsale.com/uk/search/businesses-for-sale",
   },
   {
     name: "Daltons Business",
-    searchUrl: "https://www.daltonsbusiness.com/buy-a-business",
+    searchUrl: "https://www.daltonsbusiness.com/businesses-for-sale",
   },
   {
     name: "RightBiz",
-    searchUrl: "https://www.rightbiz.co.uk/businesses-for-sale",
+    searchUrl: "https://www.rightbiz.co.uk/buy-a-business",
   },
   {
-    name: "BizBuySell UK",
-    searchUrl: "https://www.bizbuysell.com/united-kingdom-businesses-for-sale/",
+    name: "Businesses For Sale UK",
+    searchUrl: "https://www.businesses-for-sale.co.uk/search",
   },
 ];
 
