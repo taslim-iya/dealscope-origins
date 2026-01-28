@@ -622,10 +622,16 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {mandates.map((mandate) => (
-                      <tr key={mandate.id} className="hover:bg-secondary/30 transition-colors">
+                      <tr
+                        key={mandate.id}
+                        className="hover:bg-secondary/30 transition-colors cursor-pointer"
+                        onClick={() => navigate(`/admin/mandate/${mandate.id}`)}
+                      >
                         <td className="px-4 py-4">
                           <div>
-                            <p className="font-medium text-foreground">{mandate.name}</p>
+                            <p className="font-medium text-foreground hover:text-primary">
+                              {mandate.name}
+                            </p>
                             <p className="text-xs text-muted-foreground">
                               {mandate.profile?.email}
                             </p>
