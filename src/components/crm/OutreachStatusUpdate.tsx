@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -19,6 +18,7 @@ interface OutreachStatusUpdateProps {
   pipelineStages: Array<{ key: string; label: string; icon: any; color: string }>;
   onStatusUpdate: (recordId: string, newStatus: string, additionalData?: Partial<OutreachRecord>) => Promise<void>;
   onNotesUpdate: (recordId: string, notes: string) => Promise<void>;
+  onFollowUpDaysUpdate: (recordId: string, days: number) => Promise<void>;
   isUpdating: boolean;
 }
 
@@ -35,12 +35,24 @@ export function OutreachStatusUpdate({
   pipelineStages,
   onStatusUpdate,
   onNotesUpdate,
+  onFollowUpDaysUpdate,
   isUpdating,
 }: OutreachStatusUpdateProps) {
   const [notes, setNotes] = useState(record.notes || "");
   const [outcome, setOutcome] = useState(record.outcome || "");
+  const [followUpDays, setFollowUpDays] = useState(record.follow_up_days || 7);
   const [notesChanged, setNotesChanged] = useState(false);
   const { toast } = useToast();
+
+  const handleFollowUpDaysChange = async (value: string) => {
+    const days = parseInt(value);
+    setFollowUpDays(days);
+    await onFollowUpDaysUpdate(record.id, days);
+    toast({
+      title: "Reminder updated",
+      description: `Follow-up reminder set to ${days} days.`,
+    });
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     await onStatusUpdate(record.id, newStatus);
@@ -135,20 +147,43 @@ export function OutreachStatusUpdate({
       </div>
 
       {/* Outcome (for closed deals) */}
-      <div className="grid gap-2">
-        <Label className="text-xs text-muted-foreground">Outcome</Label>
-        <Select value={outcome} onValueChange={handleOutcomeChange}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select outcome..." />
-          </SelectTrigger>
-          <SelectContent>
-            {outcomeOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label className="text-xs text-muted-foreground">Outcome</Label>
+          <Select value={outcome} onValueChange={handleOutcomeChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select outcome..." />
+            </SelectTrigger>
+            <SelectContent>
+              {outcomeOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Follow-up reminder configuration */}
+        <div className="grid gap-2">
+          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+            <Bell className="h-3 w-3" />
+            Follow-up reminder
+          </Label>
+          <Select value={followUpDays.toString()} onValueChange={handleFollowUpDaysChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="3">After 3 days</SelectItem>
+              <SelectItem value="5">After 5 days</SelectItem>
+              <SelectItem value="7">After 7 days</SelectItem>
+              <SelectItem value="14">After 14 days</SelectItem>
+              <SelectItem value="21">After 21 days</SelectItem>
+              <SelectItem value="30">After 30 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Notes */}
