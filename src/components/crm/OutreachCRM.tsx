@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { OutreachStatusUpdate } from "./OutreachStatusUpdate";
+import { OutreachAnalytics } from "./OutreachAnalytics";
 
 export interface OutreachRecord {
   id: string;
@@ -236,6 +237,9 @@ export function OutreachCRM({ mandateId }: OutreachCRMProps) {
 
   return (
     <div className="space-y-6">
+      {/* Conversion Analytics */}
+      <OutreachAnalytics records={records} />
+
       {/* Pipeline Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         {pipelineStages.map((stage) => {
