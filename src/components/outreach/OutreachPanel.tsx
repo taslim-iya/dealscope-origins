@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sparkles, Send, Edit3, Loader2, Mail, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { Sparkles, Send, Edit3, Loader2, Mail, Clock, CheckCircle, AlertCircle, Copy, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,17 @@ interface OutreachMessage {
   sent_at: string | null;
 }
 
+// Helper to generate tracking pixel URL for a message
+const getTrackingPixelUrl = (messageId: string) => {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-email-open?id=${messageId}`;
+};
+
+// Helper to get email body with tracking pixel embedded
+const getEmailWithTracking = (body: string, messageId: string) => {
+  const trackingUrl = getTrackingPixelUrl(messageId);
+  return `${body}\n\n<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;" />`;
+};
+
 interface OutreachPanelProps {
   companyId: string;
   mandateId: string;
@@ -26,7 +37,9 @@ interface OutreachPanelProps {
 const statusConfig = {
   draft: { label: "Draft", icon: Edit3, className: "text-muted-foreground" },
   approved: { label: "Approved", icon: CheckCircle, className: "text-primary" },
-  sent: { label: "Sent", icon: Send, className: "text-green-600" },
+  sent: { label: "Sent", icon: Send, className: "text-purple-600" },
+  opened: { label: "Opened", icon: Eye, className: "text-amber-600" },
+  replied: { label: "Replied", icon: Mail, className: "text-emerald-600" },
   failed: { label: "Failed", icon: AlertCircle, className: "text-destructive" },
 };
 
@@ -163,6 +176,18 @@ export function OutreachPanel({ companyId, mandateId, companyName }: OutreachPan
     }
   };
 
+  const copyEmailWithTracking = (message: OutreachMessage) => {
+    const emailWithTracking = getEmailWithTracking(message.body, message.id);
+    const htmlContent = `Subject: ${message.subject}\n\n${emailWithTracking}`;
+    
+    navigator.clipboard.writeText(htmlContent).then(() => {
+      toast({
+        title: "Copied with tracking",
+        description: "Email copied with tracking pixel. Paste into your email client (as HTML).",
+      });
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -265,15 +290,28 @@ export function OutreachPanel({ companyId, mandateId, companyName }: OutreachPan
                         {message.body}
                       </p>
                     </div>
-                    {message.status === "draft" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => approveMessage(message.id)}
-                      >
-                        Approve
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {message.status === "draft" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => approveMessage(message.id)}
+                        >
+                          Approve
+                        </Button>
+                      )}
+                      {message.status === "approved" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyEmailWithTracking(message)}
+                          className="gap-1"
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copy with Tracking
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

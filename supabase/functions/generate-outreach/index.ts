@@ -177,11 +177,20 @@ Format your response as JSON with "subject" and "body" fields.`;
 
     const emailData = JSON.parse(toolCall.function.arguments);
 
+    // Generate tracking pixel URL (will be embedded when email is actually sent)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const trackingPixelPlaceholder = `{{TRACKING_PIXEL_URL}}`;
+
+    // Add tracking pixel to email body
+    const bodyWithTracking = `${emailData.body}\n\n<img src="${trackingPixelPlaceholder}" width="1" height="1" alt="" style="display:none;" />`;
+
     return new Response(JSON.stringify({
       success: true,
       subject: emailData.subject,
       body: emailData.body,
+      bodyWithTracking: bodyWithTracking,
       companyName: company.company_name,
+      supabaseUrl: supabaseUrl,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
