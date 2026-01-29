@@ -240,6 +240,8 @@ export type Database = {
           closed_at: string | null
           company_id: string
           created_at: string
+          follow_up_days: number | null
+          follow_up_dismissed_at: string | null
           id: string
           mandate_id: string
           meeting_scheduled_at: string | null
@@ -259,6 +261,8 @@ export type Database = {
           closed_at?: string | null
           company_id: string
           created_at?: string
+          follow_up_days?: number | null
+          follow_up_dismissed_at?: string | null
           id?: string
           mandate_id: string
           meeting_scheduled_at?: string | null
@@ -278,6 +282,8 @@ export type Database = {
           closed_at?: string | null
           company_id?: string
           created_at?: string
+          follow_up_days?: number | null
+          follow_up_dismissed_at?: string | null
           id?: string
           mandate_id?: string
           meeting_scheduled_at?: string | null

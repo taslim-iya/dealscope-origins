@@ -14,6 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   StickyNote,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,19 @@ export interface OutreachRecord {
   company_id: string;
   company_name?: string;
   recipient_email: string | null;
+  follow_up_days: number | null;
+  follow_up_dismissed_at: string | null;
+}
+
+// Helper to check if follow-up is due
+export function isFollowUpDue(record: OutreachRecord): boolean {
+  if (!record.sent_at || !record.follow_up_days) return false;
+  if (record.follow_up_dismissed_at) return false;
+  if (["replied", "meeting", "closed"].includes(record.status)) return false;
+  
+  const sentDate = new Date(record.sent_at);
+  const dueDate = new Date(sentDate.getTime() + record.follow_up_days * 24 * 60 * 60 * 1000);
+  return new Date() > dueDate;
 }
 
 interface OutreachCRMProps {
@@ -77,6 +92,8 @@ export function OutreachCRM({ mandateId }: OutreachCRMProps) {
         notes,
         company_id,
         recipient_email,
+        follow_up_days,
+        follow_up_dismissed_at,
         companies (
           company_name
         )
@@ -152,6 +169,38 @@ export function OutreachCRM({ mandateId }: OutreachCRMProps) {
     }
   };
 
+  const handleFollowUpDaysUpdate = async (recordId: string, days: number) => {
+    const { error } = await supabase
+      .from("outreach_messages")
+      .update({ follow_up_days: days })
+      .eq("id", recordId);
+
+    if (!error) {
+      setRecords(prev =>
+        prev.map(r =>
+          r.id === recordId ? { ...r, follow_up_days: days } : r
+        )
+      );
+    }
+  };
+
+  const handleDismissFollowUp = async (recordId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("outreach_messages")
+      .update({ follow_up_dismissed_at: now })
+      .eq("id", recordId);
+
+    if (!error) {
+      setRecords(prev =>
+        prev.map(r =>
+          r.id === recordId ? { ...r, follow_up_dismissed_at: now } : r
+        )
+      );
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -182,6 +231,9 @@ export function OutreachCRM({ mandateId }: OutreachCRMProps) {
   // Also count failed separately
   const failedCount = records.filter(r => r.status === "failed").length;
 
+  // Count follow-ups due
+  const followUpsDue = records.filter(isFollowUpDue);
+
   return (
     <div className="space-y-6">
       {/* Pipeline Summary */}
@@ -203,6 +255,59 @@ export function OutreachCRM({ mandateId }: OutreachCRMProps) {
         })}
       </div>
 
+      {followUpsDue.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="h-4 w-4 text-amber-600" />
+              <span className="font-medium text-amber-800 dark:text-amber-200">
+                {followUpsDue.length} follow-up{followUpsDue.length > 1 ? "s" : ""} due
+              </span>
+            </div>
+            <div className="space-y-2">
+              {followUpsDue.map((record) => {
+                const daysSinceSent = record.sent_at 
+                  ? Math.floor((Date.now() - new Date(record.sent_at).getTime()) / (1000 * 60 * 60 * 24))
+                  : 0;
+                return (
+                  <div
+                    key={record.id}
+                    className="flex items-center justify-between bg-background rounded-md px-3 py-2"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{record.company_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Sent {daysSinceSent} days ago • No response
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Link to={`/company/${record.company_id}`}>
+                          Follow up
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleDismissFollowUp(record.id, e)}
+                        title="Dismiss reminder"
+                      >
+                        <BellOff className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {failedCount > 0 && (
         <div className="flex items-center gap-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4" />
@@ -221,9 +326,10 @@ export function OutreachCRM({ mandateId }: OutreachCRMProps) {
               const stageConfig = pipelineStages.find(s => s.key === record.status) || pipelineStages[0];
               const StageIcon = stageConfig.icon;
               const isExpanded = expandedId === record.id;
+              const followUpDue = isFollowUpDue(record);
 
               return (
-                <div key={record.id} className="bg-background">
+                <div key={record.id} className={`bg-background ${followUpDue ? "border-l-4 border-l-amber-400" : ""}`}>
                   {/* Main Row */}
                   <div
                     className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 cursor-pointer transition-colors"
@@ -276,6 +382,7 @@ export function OutreachCRM({ mandateId }: OutreachCRMProps) {
                         pipelineStages={pipelineStages}
                         onStatusUpdate={handleStatusUpdate}
                         onNotesUpdate={handleNotesUpdate}
+                        onFollowUpDaysUpdate={handleFollowUpDaysUpdate}
                         isUpdating={updatingId === record.id}
                       />
                     </div>
