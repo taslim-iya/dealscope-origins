@@ -13,6 +13,7 @@ import {
   Upload,
   CheckCircle,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,6 +122,9 @@ export default function AdminMandateView() {
     success: boolean;
     message: string;
   } | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<Record<string, any> | null>(null);
+  const [analyzingCsv, setAnalyzingCsv] = useState(false);
+  const [lastCsvContent, setLastCsvContent] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -216,9 +220,11 @@ export default function AdminMandateView() {
 
     setUploading(true);
     setUploadResult(null);
+    setAiSuggestions(null);
 
     try {
       const text = await file.text();
+      setLastCsvContent(text);
 
       const { data, error } = await supabase.functions.invoke("process-company-upload", {
         body: {
@@ -241,6 +247,9 @@ export default function AdminMandateView() {
         description: `Added ${data.companies_added} companies`,
       });
 
+      // Trigger AI analysis in background
+      analyzeWithAI(text);
+
       // Refresh data
       fetchData();
     } catch (error) {
@@ -260,6 +269,58 @@ export default function AdminMandateView() {
         fileInputRef.current.value = "";
       }
     }
+  };
+
+  const analyzeWithAI = async (csvContent: string) => {
+    setAnalyzingCsv(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-csv", {
+        body: { csv_content: csvContent },
+      });
+
+      if (error) throw error;
+      if (data?.suggestions) {
+        setAiSuggestions(data.suggestions);
+      }
+    } catch (error) {
+      console.error("AI analysis error:", error);
+    } finally {
+      setAnalyzingCsv(false);
+    }
+  };
+
+  const applyAiSuggestions = async () => {
+    if (!aiSuggestions || !id) return;
+
+    const updates: Record<string, any> = {};
+    if (aiSuggestions.industries) updates.industry_description = aiSuggestions.industries;
+    if (aiSuggestions.sic_codes) updates.sic_codes = aiSuggestions.sic_codes;
+    if (aiSuggestions.regions) updates.regions = aiSuggestions.regions.split(",").map((r: string) => r.trim());
+    if (aiSuggestions.revenue_min) updates.revenue_min = aiSuggestions.revenue_min;
+    if (aiSuggestions.revenue_max) updates.revenue_max = aiSuggestions.revenue_max;
+    if (aiSuggestions.total_assets_min) updates.total_assets_min = aiSuggestions.total_assets_min;
+    if (aiSuggestions.total_assets_max) updates.total_assets_max = aiSuggestions.total_assets_max;
+    if (aiSuggestions.net_assets_min) updates.net_assets_min = aiSuggestions.net_assets_min;
+    if (aiSuggestions.net_assets_max) updates.net_assets_max = aiSuggestions.net_assets_max;
+
+    if (Object.keys(updates).length === 0) {
+      toast({ title: "No suggestions to apply" });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("mandates")
+      .update(updates)
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Failed to update mandate", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Mandate updated", description: "AI suggestions applied successfully." });
+    setAiSuggestions(null);
+    fetchData();
   };
 
   const filteredCompanies = companies.filter((company) => {
@@ -423,6 +484,62 @@ export default function AdminMandateView() {
                           <AlertCircle className="h-4 w-4" />
                         )}
                         <span className="text-sm">{uploadResult.message}</span>
+                      </div>
+                    )}
+
+                    {analyzingCsv && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary text-muted-foreground">
+                        <Sparkles className="h-4 w-4 animate-pulse" />
+                        <span className="text-sm">AI is analyzing the uploaded data...</span>
+                      </div>
+                    )}
+
+                    {aiSuggestions && (
+                      <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium text-foreground">
+                            AI-Suggested Mandate Criteria
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{aiSuggestions.summary}</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {aiSuggestions.industries && (
+                            <div>
+                              <span className="text-muted-foreground">Industries:</span>{" "}
+                              <span className="text-foreground">{aiSuggestions.industries}</span>
+                            </div>
+                          )}
+                          {aiSuggestions.sic_codes && (
+                            <div>
+                              <span className="text-muted-foreground">SIC Codes:</span>{" "}
+                              <span className="text-foreground">{aiSuggestions.sic_codes}</span>
+                            </div>
+                          )}
+                          {aiSuggestions.regions && (
+                            <div>
+                              <span className="text-muted-foreground">Regions:</span>{" "}
+                              <span className="text-foreground">{aiSuggestions.regions}</span>
+                            </div>
+                          )}
+                          {(aiSuggestions.revenue_min || aiSuggestions.revenue_max) && (
+                            <div>
+                              <span className="text-muted-foreground">Revenue:</span>{" "}
+                              <span className="text-foreground">
+                                £{aiSuggestions.revenue_min?.toLocaleString() || "0"} – £{aiSuggestions.revenue_max?.toLocaleString() || "∞"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={applyAiSuggestions}>
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Apply to Mandate
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setAiSuggestions(null)}>
+                            Dismiss
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>

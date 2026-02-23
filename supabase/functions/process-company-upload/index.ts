@@ -24,15 +24,57 @@ interface CompanyRow {
   total_assets?: number;
 }
 
+/**
+ * Parse a single CSV line handling quoted fields with commas inside.
+ */
+function parseCSVLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++; // skip escaped quote
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ",") {
+        fields.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
+function normalizeHeader(h: string): string {
+  return h.toLowerCase().replace(/['"]/g, "").replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+
 function parseCSV(csvText: string): CompanyRow[] {
-  const lines = csvText.trim().split("\n");
+  const lines = csvText.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, "").replace(/\s+/g, "_"));
+  const headers = parseCSVLine(lines[0]).map(normalizeHeader);
+  console.log("Detected headers:", headers);
+
   const companies: CompanyRow[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(",").map((v) => v.trim().replace(/['"]/g, ""));
+    const values = parseCSVLine(lines[i]);
     if (values.length === 0 || (values.length === 1 && !values[0])) continue;
 
     const row: Record<string, string> = {};
@@ -40,7 +82,6 @@ function parseCSV(csvText: string): CompanyRow[] {
       row[header] = values[idx] || "";
     });
 
-    // Helper to parse numeric values
     const parseNumeric = (value: string | undefined): number | undefined => {
       if (!value) return undefined;
       const cleaned = value.replace(/[£$,\s]/g, "");
@@ -48,70 +89,63 @@ function parseCSV(csvText: string): CompanyRow[] {
       return isNaN(num) ? undefined : num;
     };
 
-    // Map common header variations
+    const get = (...keys: string[]): string | undefined => {
+      for (const k of keys) {
+        if (row[k]) return row[k];
+      }
+      return undefined;
+    };
+
+    const getNum = (...keys: string[]): number | undefined => {
+      for (const k of keys) {
+        if (row[k]) {
+          const v = parseNumeric(row[k]);
+          if (v !== undefined) return v;
+        }
+      }
+      return undefined;
+    };
+
     const company: CompanyRow = {
-      company_name:
-        row["company_name"] ||
-        row["company"] ||
-        row["name"] ||
-        row["business_name"] ||
-        "",
-      geography:
-        row["geography"] ||
-        row["location"] ||
-        row["region"] ||
-        row["city"] ||
-        undefined,
-      industry:
-        row["industry"] ||
-        row["sector"] ||
-        row["sic_description"] ||
-        undefined,
-      description_of_activities:
-        row["description_of_activities"] ||
-        row["description"] ||
-        row["activities"] ||
-        row["business_description"] ||
-        undefined,
-      companies_house_number:
-        row["companies_house_number"] ||
-        row["company_number"] ||
-        row["ch_number"] ||
-        row["registration_number"] ||
-        undefined,
-      website:
-        row["website"] ||
-        row["url"] ||
-        row["web"] ||
-        undefined,
-      address:
-        row["address"] ||
-        row["registered_address"] ||
-        row["location"] ||
-        undefined,
-      revenue: parseNumeric(
-        row["revenue"] ||
-        row["turnover"] ||
-        row["sales"]
+      company_name: get("company_name", "company", "name", "business_name", "trading_name") || "",
+      geography: get(
+        "geography", "location", "region", "city", "county", "town",
+        "postcode", "registered_office", "country"
       ),
-      profit_before_tax: parseNumeric(
-        row["profit_before_tax"] ||
-        row["pbt"] ||
-        row["profit"]
+      industry: get(
+        "industry", "sector", "sic_description", "sic_text", "sic",
+        "sic_code", "trade", "activity", "business_type", "trade_classification",
+        "principal_activity", "nature_of_business"
       ),
-      net_assets: parseNumeric(
-        row["net_assets"] ||
-        row["net_asset_value"] ||
-        row["nav"]
+      description_of_activities: get(
+        "description_of_activities", "description", "activities",
+        "business_description", "trading_activities"
       ),
-      total_assets: parseNumeric(
-        row["total_assets"] ||
-        row["assets"] ||
-        row["total_asset_value"]
+      companies_house_number: get(
+        "companies_house_number", "company_number", "ch_number",
+        "registration_number", "crn", "company_registration_number"
       ),
-      revenue_band: row["revenue_band"] || undefined,
-      asset_band: row["asset_band"] || undefined,
-      status: row["status"] || "new",
+      website: get("website", "url", "web", "web_address"),
+      address: get("address", "registered_address", "office_address", "full_address"),
+      revenue: getNum(
+        "revenue", "turnover", "sales", "turnover_gbp",
+        "annual_revenue", "latest_turnover", "annual_turnover"
+      ),
+      profit_before_tax: getNum(
+        "profit_before_tax", "pbt", "profit", "operating_profit",
+        "net_profit", "profit_gbp", "pre_tax_profit"
+      ),
+      net_assets: getNum(
+        "net_assets", "net_asset_value", "nav",
+        "shareholders_funds", "equity", "net_worth"
+      ),
+      total_assets: getNum(
+        "total_assets", "assets", "total_asset_value",
+        "fixed_assets", "gross_assets"
+      ),
+      revenue_band: get("revenue_band"),
+      asset_band: get("asset_band"),
+      status: get("status") || "new",
     };
 
     if (company.company_name) {
@@ -119,6 +153,7 @@ function parseCSV(csvText: string): CompanyRow[] {
     }
   }
 
+  console.log(`Parsed ${companies.length} companies from CSV`);
   return companies;
 }
 
@@ -142,18 +177,16 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Verify user and get claims
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     // Check if user is admin
     const { data: roleData } = await supabase
@@ -238,9 +271,9 @@ serve(async (req) => {
     // Update mandate companies_delivered count
     const { error: updateError } = await supabase
       .from("mandates")
-      .update({ 
+      .update({
         companies_delivered: insertedCompanies?.length || 0,
-        status: "active"
+        status: "active",
       })
       .eq("id", mandate_id);
 
@@ -263,7 +296,10 @@ serve(async (req) => {
         .single();
 
       if (domainData) {
-        const newRemaining = Math.max(0, domainData.free_companies_remaining - (insertedCompanies?.length || 0));
+        const newRemaining = Math.max(
+          0,
+          domainData.free_companies_remaining - (insertedCompanies?.length || 0)
+        );
         await supabase
           .from("domains")
           .update({ free_companies_remaining: newRemaining })
