@@ -384,63 +384,84 @@ export default function OnMarket() {
                 </div>
               </div>
 
-              {/* Deals Grid */}
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredDeals.map((deal) => (
-                  <div key={deal.id} className="card-elevated p-5 flex flex-col">
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <h3 className="font-semibold text-foreground line-clamp-1">
-                        {deal.company_name}
-                      </h3>
-                      <a
-                        href={deal.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+              {/* Deals Table */}
+              <div className="card-elevated overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-secondary/40 hover:bg-secondary/40">
+                      <TableHead className="font-semibold text-foreground w-[220px]">Company</TableHead>
+                      <TableHead className="font-semibold text-foreground">Industry</TableHead>
+                      <TableHead className="font-semibold text-foreground">Location</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right">Asking Price</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right">Revenue</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right">Profit</TableHead>
+                      <TableHead className="font-semibold text-foreground text-right">Net Assets</TableHead>
+                      <TableHead className="font-semibold text-foreground">Source</TableHead>
+                      <TableHead className="font-semibold text-foreground">Listed</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredDeals.map((deal) => (
+                      <TableRow
+                        key={deal.id}
+                        className="cursor-pointer hover:bg-secondary/30 transition-colors"
+                        onClick={() => window.open(deal.source_url, "_blank", "noopener,noreferrer")}
                       >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </div>
-                    
-                    {deal.industry && (
-                      <span className="inline-block text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded mb-3 w-fit">
-                        {deal.industry}
-                      </span>
-                    )}
-                    
-                    {deal.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                        {deal.description}
-                      </p>
-                    )}
-                    
-                    <div className="mt-auto space-y-2 text-sm">
-                      {deal.location && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Location</span>
-                          <span className="text-foreground">{deal.location}</span>
-                        </div>
-                      )}
-                      {deal.asking_price && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Asking Price</span>
-                          <span className="text-foreground font-medium">{deal.asking_price}</span>
-                        </div>
-                      )}
-                      {deal.revenue && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Revenue</span>
-                          <span className="text-foreground">{deal.revenue}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{deal.source}</span>
-                      <span>{new Date(deal.scraped_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                ))}
+                        <TableCell className="font-medium text-foreground">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="line-clamp-1">{deal.company_name}</span>
+                            {deal.description && (
+                              <span className="text-xs text-muted-foreground line-clamp-1 font-normal">
+                                {deal.description}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {deal.industry ? (
+                            <span className="inline-block text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded whitespace-nowrap">
+                              {deal.industry}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {deal.location || <span className="text-xs">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-foreground whitespace-nowrap">
+                          {deal.asking_price || <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-foreground whitespace-nowrap">
+                          {deal.revenue || <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-foreground whitespace-nowrap">
+                          {deal.profit || <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-foreground whitespace-nowrap">
+                          {deal.net_assets || <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {deal.source}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(deal.scraped_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <a
+                            href={deal.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </>
           )}
