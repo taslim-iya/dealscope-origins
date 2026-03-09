@@ -115,7 +115,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             query: searchQuery,
-            limit: 30,
+            limit: 200,
             lang: "en",
             country: "gb",
             scrapeOptions: {
@@ -257,7 +257,7 @@ ${combinedContent}`,
       }
 
       // Generate summaries for deals
-      const dealsToProcess = deals.slice(0, 50);
+      const dealsToProcess = deals.slice(0, 200);
       for (const deal of dealsToProcess) {
         if (LOVABLE_API_KEY && deal.company_name && !deal.ai_summary) {
           try {
