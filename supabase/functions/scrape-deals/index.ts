@@ -295,10 +295,21 @@ Focus on key investment highlights and potential.`,
 
         const dealUrl = deal.source_url || `https://marketplace.search/#${encodeURIComponent(deal.company_name.substring(0, 50))}`;
 
+        // Extract domain from source URL to use as source name
+        let sourceName = "Marketplace";
+        try {
+          const urlObj = new URL(dealUrl);
+          sourceName = urlObj.hostname.replace(/^www\./, '').split('.')[0];
+          // Capitalize first letter
+          sourceName = sourceName.charAt(0).toUpperCase() + sourceName.slice(1);
+        } catch (e) {
+          console.error("Failed to parse URL for source name:", e);
+        }
+
         const { error: insertError } = await supabase.from("on_market_deals").upsert(
           {
             user_id: userId,
-            source: "Marketplace Scraper",
+            source: sourceName,
             source_url: dealUrl,
             company_name: deal.company_name,
             asking_price: deal.asking_price || null,
