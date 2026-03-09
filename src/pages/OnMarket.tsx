@@ -12,6 +12,8 @@ import {
   Database,
   RefreshCw,
   Settings,
+  Plus,
+  ClipboardList,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -252,6 +254,14 @@ export default function OnMarket() {
               <p className="mt-6 text-sm text-muted-foreground">
                 This feature is currently in development. Check back soon.
               </p>
+              <div className="mt-8">
+                <Button asChild className="gap-2">
+                  <Link to="/list-company">
+                    <Plus className="h-4 w-4" />
+                    List Your Company
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </section>
@@ -353,6 +363,12 @@ export default function OnMarket() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" asChild className="gap-2">
+                <Link to="/admin/listings">
+                  <ClipboardList className="h-4 w-4" />
+                  Approvals
+                </Link>
+              </Button>
               <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="outline" className="gap-2">
