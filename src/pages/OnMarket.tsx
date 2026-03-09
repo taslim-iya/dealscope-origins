@@ -11,6 +11,7 @@ import {
   Loader2,
   Database,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -30,10 +31,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
+import { ScrapeSourcesManager } from "@/components/marketplace/ScrapeSourcesManager";
 
 interface OnMarketDeal {
   id: string;
