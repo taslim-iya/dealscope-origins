@@ -20,6 +20,8 @@ import CompanyDetails from "./pages/CompanyDetails";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminCompanies from "./pages/AdminCompanies";
 import AdminMandateView from "./pages/AdminMandateView";
+import ListCompany from "./pages/ListCompany";
+import AdminListings from "./pages/AdminListings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +37,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/off-market" element={<OffMarket />} />
             <Route path="/on-market" element={<OnMarket />} />
+            <Route path="/list-company" element={<ListCompany />} />
             
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/about" element={<About />} />
@@ -47,6 +50,7 @@ const App = () => (
             <Route path="/company/:id" element={<CompanyDetails />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/companies" element={<AdminCompanies />} />
+            <Route path="/admin/listings" element={<AdminListings />} />
             <Route path="/admin/mandate/:id" element={<AdminMandateView />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
