@@ -363,6 +363,12 @@ export default function OnMarket() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" asChild className="gap-2">
+                <Link to="/admin/listings">
+                  <ClipboardList className="h-4 w-4" />
+                  Approvals
+                </Link>
+              </Button>
               <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="outline" className="gap-2">
