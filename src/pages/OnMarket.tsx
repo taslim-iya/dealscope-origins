@@ -88,6 +88,57 @@ export default function OnMarket() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingRole, setCheckingRole] = useState(true);
 
+  const columns = [
+    { key: "company", label: "Company", align: "left" },
+    { key: "industry", label: "Industry", align: "left" },
+    { key: "location", label: "Location", align: "left" },
+    { key: "asking_price", label: "Asking Price", align: "right" },
+    { key: "revenue", label: "Revenue", align: "right" },
+    { key: "profit", label: "Profit", align: "right" },
+    { key: "net_assets", label: "Net Assets", align: "right" },
+    { key: "source", label: "Source", align: "left" },
+    { key: "listed", label: "Listed", align: "left" },
+    { key: "link", label: "", align: "left" },
+  ];
+
+  const defaultWidths = ["200px", "130px", "120px", "110px", "100px", "100px", "100px", "100px", "100px", "40px"];
+  const [columnWidths, setColumnWidths] = useState<string[]>(defaultWidths);
+  const resizingCol = useRef<number | null>(null);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent, colIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingCol.current = colIndex;
+    startX.current = e.clientX;
+    startWidth.current = parseInt(columnWidths[colIndex]);
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (resizingCol.current === null) return;
+      const diff = ev.clientX - startX.current;
+      const newWidth = Math.max(60, startWidth.current + diff);
+      setColumnWidths((prev) => {
+        const next = [...prev];
+        next[resizingCol.current!] = `${newWidth}px`;
+        return next;
+      });
+    };
+
+    const onMouseUp = () => {
+      resizingCol.current = null;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [columnWidths]);
+
   // Check if user has admin role
   useEffect(() => {
     const checkAdminRole = async () => {
