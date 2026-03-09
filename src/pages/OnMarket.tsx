@@ -417,82 +417,93 @@ export default function OnMarket() {
 
               {/* Deals Table */}
               <div className="card-elevated overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-secondary/40 hover:bg-secondary/40">
-                      <TableHead className="font-semibold text-foreground w-[220px]">Company</TableHead>
-                      <TableHead className="font-semibold text-foreground">Industry</TableHead>
-                      <TableHead className="font-semibold text-foreground">Location</TableHead>
-                      <TableHead className="font-semibold text-foreground text-right">Asking Price</TableHead>
-                      <TableHead className="font-semibold text-foreground text-right">Revenue</TableHead>
-                      <TableHead className="font-semibold text-foreground text-right">Profit</TableHead>
-                      <TableHead className="font-semibold text-foreground text-right">Net Assets</TableHead>
-                      <TableHead className="font-semibold text-foreground">Source</TableHead>
-                      <TableHead className="font-semibold text-foreground">Listed</TableHead>
-                      <TableHead className="w-10"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredDeals.map((deal) => (
-                      <TableRow
-                        key={deal.id}
-                        className="cursor-pointer hover:bg-secondary/30 transition-colors"
-                        onClick={() => window.open(deal.source_url, "_blank", "noopener,noreferrer")}
-                      >
-                        <TableCell className="font-medium text-foreground">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="line-clamp-1">{deal.company_name}</span>
-                            {deal.description && (
-                              <span className="text-xs text-muted-foreground line-clamp-1 font-normal">
-                                {deal.description}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {deal.industry ? (
-                            <span className="inline-block text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded whitespace-nowrap">
-                              {deal.industry}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                          {deal.location || <span className="text-xs">—</span>}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-foreground whitespace-nowrap">
-                          {deal.asking_price || <span className="text-muted-foreground text-xs">—</span>}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-foreground whitespace-nowrap">
-                          {deal.revenue || <span className="text-muted-foreground text-xs">—</span>}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-foreground whitespace-nowrap">
-                          {deal.profit || <span className="text-muted-foreground text-xs">—</span>}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-foreground whitespace-nowrap">
-                          {deal.net_assets || <span className="text-muted-foreground text-xs">—</span>}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {deal.source}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(deal.scraped_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <a
-                            href={deal.source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-foreground transition-colors"
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse" style={{ tableLayout: "fixed", minWidth: "1100px" }}>
+                    <colgroup>
+                      {columnWidths.map((w, i) => (
+                        <col key={i} style={{ width: w }} />
+                      ))}
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-secondary/40 border-b border-border">
+                        {columns.map((col, i) => (
+                          <th
+                            key={col.key}
+                            className={`relative h-11 px-3 text-left font-semibold text-foreground select-none ${col.align === "right" ? "text-right" : ""}`}
                           >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                            {col.label}
+                            {i < columns.length - 1 && (
+                              <div
+                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors z-10"
+                                onMouseDown={(e) => handleResizeStart(e, i)}
+                              />
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDeals.map((deal) => (
+                        <tr
+                          key={deal.id}
+                          className="border-b border-border cursor-pointer hover:bg-secondary/30 transition-colors"
+                          onClick={() => window.open(deal.source_url, "_blank", "noopener,noreferrer")}
+                        >
+                          <td className="px-3 py-3 font-medium text-foreground">
+                            <div className="flex flex-col gap-0.5 overflow-hidden">
+                              <span className="truncate">{deal.company_name}</span>
+                              {deal.description && (
+                                <span className="text-xs text-muted-foreground truncate font-normal">
+                                  {deal.description}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            {deal.industry ? (
+                              <span className="inline-block text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded truncate max-w-full">
+                                {deal.industry}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-muted-foreground truncate">
+                            {deal.location || <span className="text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-right font-medium text-foreground whitespace-nowrap">
+                            {deal.asking_price || <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-right text-foreground whitespace-nowrap">
+                            {deal.revenue || <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-right text-foreground whitespace-nowrap">
+                            {deal.profit || <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-right text-foreground whitespace-nowrap">
+                            {deal.net_assets || <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-xs text-muted-foreground truncate">
+                            {deal.source}
+                          </td>
+                          <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(deal.scraped_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                          </td>
+                          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                            <a
+                              href={deal.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </>
           )}
