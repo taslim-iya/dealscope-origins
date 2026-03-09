@@ -7,15 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Search queries for UK business listings
-const SEARCH_QUERIES = [
-  "UK businesses for sale 2026",
-  "buy a business United Kingdom",
-  "business acquisition opportunities UK",
-  "SME for sale England Scotland Wales",
-  "company for sale UK owner retiring",
-];
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -30,6 +21,13 @@ serve(async (req) => {
       });
     }
 
+    // Create admin client for reading scrape sources
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Create user client for auth and user-specific operations
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -57,6 +55,29 @@ serve(async (req) => {
       );
     }
 
+    // Fetch active scrape sources from database
+    const { data: scrapeSources, error: sourcesError } = await supabaseAdmin
+      .from("scrape_sources")
+      .select("*")
+      .eq("is_active", true);
+
+    if (sourcesError) {
+      console.error("Failed to fetch scrape sources:", sourcesError);
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch scrape sources" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!scrapeSources || scrapeSources.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "No active scrape sources configured" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Found ${scrapeSources.length} active scrape sources`);
+
     // Create a log entry
     const { data: logData } = await supabase
       .from("scrape_logs")
@@ -71,19 +92,20 @@ serve(async (req) => {
     const logId = logData?.id;
 
     try {
-      // Use Firecrawl Search API for more reliable results
       const allSearchResults: Array<{
         url: string;
         title: string;
         description: string;
         markdown?: string;
+        sourceName: string;
       }> = [];
 
-      // Run multiple search queries in parallel
+      // Run searches for each configured source
       console.log("Starting Firecrawl searches...");
       
-      const searchPromises = SEARCH_QUERIES.slice(0, 3).map(async (query) => {
-        console.log(`Searching: ${query}`);
+      const searchPromises = scrapeSources.map(async (source) => {
+        const searchQuery = `site:${source.url} ${source.search_query}`;
+        console.log(`Searching: ${searchQuery}`);
         
         const searchResponse = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
@@ -92,7 +114,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            query,
+            query: searchQuery,
             limit: 10,
             lang: "en",
             country: "gb",
@@ -105,11 +127,15 @@ serve(async (req) => {
 
         if (searchResponse.ok) {
           const searchData = await searchResponse.json();
-          console.log(`Got ${searchData.data?.length || 0} results for: ${query}`);
-          return searchData.data || [];
+          console.log(`Got ${searchData.data?.length || 0} results from: ${source.name}`);
+          // Tag results with the source name
+          return (searchData.data || []).map((r: any) => ({
+            ...r,
+            sourceName: source.name,
+          }));
         } else {
           const errText = await searchResponse.text();
-          console.error(`Search error for "${query}":`, errText);
+          console.error(`Search error for "${source.name}":`, errText);
           return [];
         }
       });
@@ -128,29 +154,9 @@ serve(async (req) => {
 
       console.log(`Unique results after dedup: ${uniqueResults.length}`);
 
-      // Filter to business listing sites and combine content
-      const relevantSites = [
-        "businessesforsale",
-        "daltonsbusiness",
-        "rightbiz",
-        "businesses-for-sale",
-        "bizbuysell",
-        "businessesforsal",
-        "acquirebusiness",
-        "sellingmybusiness",
-      ];
-
-      const businessListings = uniqueResults.filter((r) =>
-        relevantSites.some((site) => r.url.toLowerCase().includes(site)) ||
-        r.title?.toLowerCase().includes("for sale") ||
-        r.description?.toLowerCase().includes("business for sale")
-      );
-
-      console.log(`Business listing results: ${businessListings.length}`);
-
       // Combine all markdown content for AI extraction
-      const combinedContent = businessListings
-        .map((r) => `\n--- Source: ${r.url} ---\nTitle: ${r.title}\n${r.markdown || r.description || ""}`)
+      const combinedContent = uniqueResults
+        .map((r) => `\n--- Source: ${r.sourceName} | URL: ${r.url} ---\nTitle: ${r.title}\n${r.markdown || r.description || ""}`)
         .join("\n\n")
         .substring(0, 50000);
 
@@ -164,6 +170,7 @@ serve(async (req) => {
         net_assets?: string;
         description?: string;
         source_url?: string;
+        source_name?: string;
         ai_summary?: string;
       }> = [];
 
@@ -192,6 +199,7 @@ Analyze this content and extract ALL unique business listings you can find. For 
 - profit: Annual profit if mentioned
 - description: Brief business description (max 200 chars)
 - source_url: The URL where this listing was found
+- source_name: The marketplace name from the "Source:" marker
 
 IMPORTANT:
 - Extract REAL business listings only, not navigation/ads
@@ -232,15 +240,16 @@ ${combinedContent}`,
       }
 
       // If AI extraction didn't work, try to extract from search result titles/descriptions
-      if (deals.length === 0 && businessListings.length > 0) {
+      if (deals.length === 0 && uniqueResults.length > 0) {
         console.log("Falling back to direct extraction from search results...");
-        deals = businessListings
+        deals = uniqueResults
           .filter((r) => r.title && r.title.length > 10)
           .slice(0, 15)
           .map((r) => ({
             company_name: r.title.replace(/\s*[-|]\s*BusinessesForSale.*$/i, "").trim(),
             description: r.description?.substring(0, 200),
             source_url: r.url,
+            source_name: r.sourceName,
             location: "UK",
             industry: "Various",
           }));
@@ -295,15 +304,16 @@ Focus on key investment highlights and potential.`,
 
         const dealUrl = deal.source_url || `https://marketplace.search/#${encodeURIComponent(deal.company_name.substring(0, 50))}`;
 
-        // Extract domain from source URL to use as source name
-        let sourceName = "Marketplace";
-        try {
-          const urlObj = new URL(dealUrl);
-          sourceName = urlObj.hostname.replace(/^www\./, '').split('.')[0];
-          // Capitalize first letter
-          sourceName = sourceName.charAt(0).toUpperCase() + sourceName.slice(1);
-        } catch (e) {
-          console.error("Failed to parse URL for source name:", e);
+        // Use the source_name from AI extraction or fallback to extracting from URL
+        let sourceName = deal.source_name || "Marketplace";
+        if (!deal.source_name) {
+          try {
+            const urlObj = new URL(dealUrl);
+            sourceName = urlObj.hostname.replace(/^www\./, '').split('.')[0];
+            sourceName = sourceName.charAt(0).toUpperCase() + sourceName.slice(1);
+          } catch (e) {
+            console.error("Failed to parse URL for source name:", e);
+          }
         }
 
         const { error: insertError } = await supabase.from("on_market_deals").upsert(
@@ -347,8 +357,8 @@ Focus on key investment highlights and potential.`,
         JSON.stringify({
           success: true,
           deals_found: insertedCount,
+          sources_searched: scrapeSources.length,
           search_results: uniqueResults.length,
-          business_listings: businessListings.length,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

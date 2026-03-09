@@ -11,6 +11,7 @@ import {
   Loader2,
   Database,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -30,10 +31,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
+import { ScrapeSourcesManager } from "@/components/marketplace/ScrapeSourcesManager";
 
 interface OnMarketDeal {
   id: string;
@@ -299,14 +309,35 @@ export default function OnMarket() {
                 Discover companies currently available for sale across the UK
               </p>
             </div>
-            <Button onClick={handleScrape} disabled={scraping} className="gap-2">
-              {scraping ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {scraping ? "Scraping..." : "Scrape New Deals"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Settings className="h-4 w-4" />
+                    Sources
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>Scrape Sources</SheetTitle>
+                    <SheetDescription>
+                      Configure which websites to scrape for business listings
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6">
+                    <ScrapeSourcesManager />
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <Button onClick={handleScrape} disabled={scraping} className="gap-2">
+                {scraping ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {scraping ? "Scraping..." : "Scrape New Deals"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
