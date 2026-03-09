@@ -254,6 +254,14 @@ export default function OnMarket() {
               <p className="mt-6 text-sm text-muted-foreground">
                 This feature is currently in development. Check back soon.
               </p>
+              <div className="mt-8">
+                <Button asChild className="gap-2">
+                  <Link to="/list-company">
+                    <Plus className="h-4 w-4" />
+                    List Your Company
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </section>
