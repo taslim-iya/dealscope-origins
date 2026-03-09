@@ -7,6 +7,67 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function startCrawl(apiKey: string, url: string, searchQuery: string): Promise<string | null> {
+  console.log(`Starting crawl for: ${url} with query context: ${searchQuery}`);
+  const response = await fetch("https://api.firecrawl.dev/v1/crawl", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      url: url.startsWith("http") ? url : `https://${url}`,
+      limit: 500,
+      maxDepth: 3,
+      scrapeOptions: {
+        formats: ["markdown"],
+        onlyMainContent: true,
+      },
+    }),
+  });
+
+  if (response.ok) {
+    const data = await response.json();
+    console.log(`Crawl started for ${url}, job id: ${data.id}`);
+    return data.id || null;
+  } else {
+    const errText = await response.text();
+    console.error(`Failed to start crawl for ${url}:`, errText);
+    return null;
+  }
+}
+
+async function pollCrawl(apiKey: string, crawlId: string, maxWaitMs: number = 55000): Promise<any[]> {
+  const startTime = Date.now();
+  let allResults: any[] = [];
+
+  while (Date.now() - startTime < maxWaitMs) {
+    await new Promise((r) => setTimeout(r, 5000)); // Wait 5s between polls
+
+    const response = await fetch(`https://api.firecrawl.dev/v1/crawl/${crawlId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+
+    if (!response.ok) {
+      console.error(`Poll error for ${crawlId}:`, await response.text());
+      break;
+    }
+
+    const data = await response.json();
+    console.log(`Crawl ${crawlId}: status=${data.status}, completed=${data.completed}/${data.total}`);
+
+    if (data.data && data.data.length > 0) {
+      allResults = data.data;
+    }
+
+    if (data.status === "completed" || data.status === "failed") {
+      break;
+    }
+  }
+
+  return allResults;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -21,29 +82,28 @@ serve(async (req) => {
       });
     }
 
-    // Create admin client for reading scrape sources
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Create user client for auth and user-specific operations
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -55,112 +115,72 @@ serve(async (req) => {
       );
     }
 
-    // Fetch active scrape sources from database
     const { data: scrapeSources, error: sourcesError } = await supabaseAdmin
       .from("scrape_sources")
       .select("*")
       .eq("is_active", true);
 
-    if (sourcesError) {
-      console.error("Failed to fetch scrape sources:", sourcesError);
+    if (sourcesError || !scrapeSources || scrapeSources.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Failed to fetch scrape sources" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!scrapeSources || scrapeSources.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "No active scrape sources configured" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: sourcesError ? "Failed to fetch scrape sources" : "No active scrape sources configured" }),
+        { status: sourcesError ? 500 : 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     console.log(`Found ${scrapeSources.length} active scrape sources`);
 
-    // Create a log entry
     const { data: logData } = await supabase
       .from("scrape_logs")
-      .insert({
-        user_id: userId,
-        source: "Marketplace Scraper",
-        status: "running",
-      })
+      .insert({ user_id: userId, source: "Marketplace Crawler", status: "running" })
       .select("id")
       .single();
-
     const logId = logData?.id;
 
     try {
-      const allSearchResults: Array<{
-        url: string;
-        title: string;
-        description: string;
-        markdown?: string;
-        sourceName: string;
-      }> = [];
+      // Start crawls for all sources in parallel
+      const crawlJobs = await Promise.all(
+        scrapeSources.map(async (source) => ({
+          source,
+          crawlId: await startCrawl(FIRECRAWL_API_KEY, source.url, source.search_query),
+        }))
+      );
 
-      // Run searches for each configured source
-      console.log("Starting Firecrawl searches...");
-      
-      const searchPromises = scrapeSources.map(async (source) => {
-        const searchQuery = `site:${source.url} ${source.search_query}`;
-        console.log(`Searching: ${searchQuery}`);
-        
-        const searchResponse = await fetch("https://api.firecrawl.dev/v1/search", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            query: searchQuery,
-            limit: 200,
-            lang: "en",
-            country: "gb",
-            scrapeOptions: {
-              formats: ["markdown"],
-              onlyMainContent: true,
-            },
-          }),
-        });
+      const validJobs = crawlJobs.filter((j) => j.crawlId !== null);
+      console.log(`Started ${validJobs.length} crawl jobs`);
 
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json();
-          console.log(`Got ${searchData.data?.length || 0} results from: ${source.name}`);
-          // Tag results with the source name
-          return (searchData.data || []).map((r: any) => ({
-            ...r,
-            sourceName: source.name,
-          }));
-        } else {
-          const errText = await searchResponse.text();
-          console.error(`Search error for "${source.name}":`, errText);
-          return [];
+      // Poll all crawls in parallel with a shared timeout
+      const crawlResults = await Promise.all(
+        validJobs.map(async (job) => ({
+          source: job.source,
+          results: await pollCrawl(FIRECRAWL_API_KEY, job.crawlId!, 55000),
+        }))
+      );
+
+      // Combine all results
+      const allPageResults: Array<{ markdown: string; url: string; sourceName: string }> = [];
+      for (const cr of crawlResults) {
+        console.log(`Crawl for ${cr.source.name}: ${cr.results.length} pages`);
+        for (const page of cr.results) {
+          if (page.markdown || page.metadata?.sourceURL) {
+            allPageResults.push({
+              markdown: page.markdown || "",
+              url: page.metadata?.sourceURL || "",
+              sourceName: cr.source.name,
+            });
+          }
         }
-      });
+      }
 
-      const searchResults = await Promise.all(searchPromises);
-      searchResults.forEach((results) => {
-        allSearchResults.push(...results);
-      });
-
-      console.log(`Total search results: ${allSearchResults.length}`);
+      console.log(`Total crawled pages: ${allPageResults.length}`);
 
       // Dedupe by URL
       const uniqueResults = Array.from(
-        new Map(allSearchResults.map((r) => [r.url, r])).values()
+        new Map(allPageResults.map((r) => [r.url, r])).values()
       );
+      console.log(`Unique pages after dedup: ${uniqueResults.length}`);
 
-      console.log(`Unique results after dedup: ${uniqueResults.length}`);
-
-      // Combine all markdown content for AI extraction
-      const combinedContent = uniqueResults
-        .map((r) => `\n--- Source: ${r.sourceName} | URL: ${r.url} ---\nTitle: ${r.title}\n${r.markdown || r.description || ""}`)
-        .join("\n\n")
-        .substring(0, 100000);
-
-      let deals: Array<{
+      // Process in chunks for AI extraction (100k char limit per chunk)
+      let allDeals: Array<{
         company_name?: string;
         asking_price?: string;
         location?: string;
@@ -174,21 +194,41 @@ serve(async (req) => {
         ai_summary?: string;
       }> = [];
 
-      if (combinedContent.length > 500 && LOVABLE_API_KEY) {
-        console.log("Using AI to extract listings from combined search results...");
+      const CHUNK_SIZE = 100000;
+      let currentChunk = "";
+      let chunkIndex = 0;
+      const chunks: string[] = [];
 
-        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
-              {
-                role: "user",
-                content: `You are extracting business-for-sale listings from UK business marketplace search results.
+      for (const r of uniqueResults) {
+        const entry = `\n--- Source: ${r.sourceName} | URL: ${r.url} ---\n${r.markdown.substring(0, 3000)}\n`;
+        if (currentChunk.length + entry.length > CHUNK_SIZE) {
+          chunks.push(currentChunk);
+          currentChunk = entry;
+        } else {
+          currentChunk += entry;
+        }
+      }
+      if (currentChunk.length > 100) chunks.push(currentChunk);
+
+      console.log(`Processing ${chunks.length} content chunks through AI`);
+
+      // Process chunks through AI (sequentially to avoid rate limits)
+      for (const chunk of chunks) {
+        if (!LOVABLE_API_KEY || chunk.length < 200) continue;
+
+        try {
+          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                {
+                  role: "user",
+                  content: `You are extracting business-for-sale listings from UK business marketplace crawl results.
 
 Analyze this content and extract ALL unique business listings you can find. For each listing:
 - company_name: The business name/title (REQUIRED - skip if not found)
@@ -209,111 +249,73 @@ IMPORTANT:
 
 Return format: {"listings": [...]}
 
-Search results content:
-${combinedContent}`,
-              },
-            ],
-          }),
-        });
+Crawled content:
+${chunk}`,
+                },
+              ],
+            }),
+          });
 
-        if (aiResponse.ok) {
-          const aiData = await aiResponse.json();
-          const content = aiData.choices?.[0]?.message?.content || "";
-          console.log("AI response preview:", content.substring(0, 500));
-
-          try {
-            let cleanContent = content
-              .replace(/```json\n?/gi, "")
-              .replace(/```\n?/gi, "")
-              .trim();
-
-            const jsonMatch = cleanContent.match(/\{[\s\S]*"listings"[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              deals = parsed.listings || [];
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            const content = aiData.choices?.[0]?.message?.content || "";
+            try {
+              let cleanContent = content.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
+              const jsonMatch = cleanContent.match(/\{[\s\S]*"listings"[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                const chunkDeals = parsed.listings || [];
+                console.log(`AI extracted ${chunkDeals.length} deals from chunk`);
+                allDeals.push(...chunkDeals);
+              }
+            } catch (e) {
+              console.error("Failed to parse AI response:", e);
             }
-            console.log(`AI extracted ${deals.length} deals`);
-          } catch (e) {
-            console.error("Failed to parse AI response:", e);
           }
+        } catch (e) {
+          console.error("AI extraction error:", e);
         }
       }
 
-      // If AI extraction didn't work, try to extract from search result titles/descriptions
-      if (deals.length === 0 && uniqueResults.length > 0) {
-        console.log("Falling back to direct extraction from search results...");
-        deals = uniqueResults
-          .filter((r) => r.title && r.title.length > 10)
-          .slice(0, 30)
-          .map((r) => ({
-            company_name: r.title.replace(/\s*[-|]\s*BusinessesForSale.*$/i, "").trim(),
-            description: r.description?.substring(0, 200),
-            source_url: r.url,
-            source_name: r.sourceName,
-            location: "UK",
-            industry: "Various",
-          }));
-        console.log(`Extracted ${deals.length} deals from search results directly`);
+      // Fallback: extract from page titles if AI found nothing
+      if (allDeals.length === 0 && uniqueResults.length > 0) {
+        console.log("Falling back to direct extraction...");
+        allDeals = uniqueResults
+          .filter((r) => r.markdown.length > 50)
+          .slice(0, 200)
+          .map((r) => {
+            const titleMatch = r.markdown.match(/^#\s+(.+)/m);
+            return {
+              company_name: titleMatch?.[1]?.substring(0, 100) || r.url.split("/").pop() || "Unknown",
+              description: r.markdown.substring(0, 200),
+              source_url: r.url,
+              source_name: r.sourceName,
+              location: "UK",
+              industry: "Various",
+            };
+          });
       }
 
-      // Generate summaries for deals
-      const dealsToProcess = deals.slice(0, 200);
-      for (const deal of dealsToProcess) {
-        if (LOVABLE_API_KEY && deal.company_name && !deal.ai_summary) {
-          try {
-            const summaryResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-flash-lite",
-                messages: [
-                  {
-                    role: "user",
-                    content: `Write a concise 2-sentence investment summary for this UK business listing:
-                    
-Business: ${deal.company_name}
-Industry: ${deal.industry || "Not specified"}
-Location: ${deal.location || "UK"}
-Asking Price: ${deal.asking_price || "Price on application"}
-Revenue: ${deal.revenue || "Not disclosed"}
-Description: ${deal.description || "No description available"}
+      // Dedupe deals by company name
+      const uniqueDeals = Array.from(
+        new Map(allDeals.map((d) => [d.company_name?.toLowerCase(), d])).values()
+      ).filter((d) => d.company_name);
 
-Focus on key investment highlights and potential.`,
-                  },
-                ],
-              }),
-            });
-
-            if (summaryResponse.ok) {
-              const summaryData = await summaryResponse.json();
-              deal.ai_summary = summaryData.choices?.[0]?.message?.content || null;
-            }
-          } catch (e) {
-            console.error("Summary generation error:", e);
-          }
-        }
-      }
+      console.log(`Total unique deals: ${uniqueDeals.length}`);
 
       // Store deals in database
       let insertedCount = 0;
-      for (const deal of dealsToProcess) {
+      for (const deal of uniqueDeals) {
         if (!deal.company_name) continue;
 
         const dealUrl = deal.source_url || `https://marketplace.search/#${encodeURIComponent(deal.company_name.substring(0, 50))}`;
-
-        // Use the source_name from AI extraction or fallback to extracting from URL
         let sourceName = deal.source_name || "Marketplace";
         if (!deal.source_name) {
           try {
             const urlObj = new URL(dealUrl);
-            sourceName = urlObj.hostname.replace(/^www\./, '').split('.')[0];
+            sourceName = urlObj.hostname.replace(/^www\./, "").split(".")[0];
             sourceName = sourceName.charAt(0).toUpperCase() + sourceName.slice(1);
-          } catch (e) {
-            console.error("Failed to parse URL for source name:", e);
-          }
+          } catch (_) {}
         }
 
         const { error: insertError } = await supabase.from("on_market_deals").upsert(
@@ -335,21 +337,14 @@ Focus on key investment highlights and potential.`,
           { onConflict: "source_url" }
         );
 
-        if (!insertError) {
-          insertedCount++;
-        } else {
-          console.error("Insert error:", insertError);
-        }
+        if (!insertError) insertedCount++;
+        else console.error("Insert error:", insertError);
       }
 
       if (logId) {
         await supabase
           .from("scrape_logs")
-          .update({
-            status: "completed",
-            deals_found: insertedCount,
-            completed_at: new Date().toISOString(),
-          })
+          .update({ status: "completed", deals_found: insertedCount, completed_at: new Date().toISOString() })
           .eq("id", logId);
       }
 
@@ -358,7 +353,7 @@ Focus on key investment highlights and potential.`,
           success: true,
           deals_found: insertedCount,
           sources_searched: scrapeSources.length,
-          search_results: uniqueResults.length,
+          pages_crawled: uniqueResults.length,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
