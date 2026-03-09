@@ -115,7 +115,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             query: searchQuery,
-            limit: 10,
+            limit: 30,
             lang: "en",
             country: "gb",
             scrapeOptions: {
