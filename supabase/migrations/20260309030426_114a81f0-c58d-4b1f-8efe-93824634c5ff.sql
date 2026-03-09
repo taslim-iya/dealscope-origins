@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS on_market_deals_source_url_key ON public.on_market_deals (source_url);
