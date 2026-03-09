@@ -309,14 +309,35 @@ export default function OnMarket() {
                 Discover companies currently available for sale across the UK
               </p>
             </div>
-            <Button onClick={handleScrape} disabled={scraping} className="gap-2">
-              {scraping ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {scraping ? "Scraping..." : "Scrape New Deals"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Settings className="h-4 w-4" />
+                    Sources
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>Scrape Sources</SheetTitle>
+                    <SheetDescription>
+                      Configure which websites to scrape for business listings
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6">
+                    <ScrapeSourcesManager />
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <Button onClick={handleScrape} disabled={scraping} className="gap-2">
+                {scraping ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {scraping ? "Scraping..." : "Scrape New Deals"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
