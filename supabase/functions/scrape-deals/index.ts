@@ -158,7 +158,7 @@ serve(async (req) => {
       const combinedContent = uniqueResults
         .map((r) => `\n--- Source: ${r.sourceName} | URL: ${r.url} ---\nTitle: ${r.title}\n${r.markdown || r.description || ""}`)
         .join("\n\n")
-        .substring(0, 50000);
+        .substring(0, 100000);
 
       let deals: Array<{
         company_name?: string;
@@ -244,7 +244,7 @@ ${combinedContent}`,
         console.log("Falling back to direct extraction from search results...");
         deals = uniqueResults
           .filter((r) => r.title && r.title.length > 10)
-          .slice(0, 15)
+          .slice(0, 30)
           .map((r) => ({
             company_name: r.title.replace(/\s*[-|]\s*BusinessesForSale.*$/i, "").trim(),
             description: r.description?.substring(0, 200),
@@ -257,7 +257,7 @@ ${combinedContent}`,
       }
 
       // Generate summaries for deals
-      const dealsToProcess = deals.slice(0, 15);
+      const dealsToProcess = deals.slice(0, 50);
       for (const deal of dealsToProcess) {
         if (LOVABLE_API_KEY && deal.company_name && !deal.ai_summary) {
           try {
