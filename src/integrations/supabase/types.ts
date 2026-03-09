@@ -82,6 +82,78 @@ export type Database = {
           },
         ]
       }
+      deal_submissions: {
+        Row: {
+          asking_price: string | null
+          business_summary: string | null
+          company_name: string
+          consent_given: boolean
+          contact_email: string
+          contact_name: string
+          contact_phone: string | null
+          contact_role: string
+          ebitda: string | null
+          file_urls: string[] | null
+          id: string
+          industry: string | null
+          internal_notes: string | null
+          location: string | null
+          reason_for_sale: string | null
+          revenue: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string
+          submitted_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          asking_price?: string | null
+          business_summary?: string | null
+          company_name: string
+          consent_given?: boolean
+          contact_email: string
+          contact_name: string
+          contact_phone?: string | null
+          contact_role?: string
+          ebitda?: string | null
+          file_urls?: string[] | null
+          id?: string
+          industry?: string | null
+          internal_notes?: string | null
+          location?: string | null
+          reason_for_sale?: string | null
+          revenue?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asking_price?: string | null
+          business_summary?: string | null
+          company_name?: string
+          consent_given?: boolean
+          contact_email?: string
+          contact_name?: string
+          contact_phone?: string | null
+          contact_role?: string
+          ebitda?: string | null
+          file_urls?: string[] | null
+          id?: string
+          industry?: string | null
+          internal_notes?: string | null
+          location?: string | null
+          reason_for_sale?: string | null
+          revenue?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       domains: {
         Row: {
           created_at: string
