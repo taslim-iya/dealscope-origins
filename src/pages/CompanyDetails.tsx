@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
@@ -76,6 +76,8 @@ const formatCurrency = (value: number | null): string => {
 export default function CompanyDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const cameFromAdmin = document.referrer.includes('/admin') || location.state?.from === 'admin';
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
@@ -191,13 +193,13 @@ export default function CompanyDetails() {
       {/* Sub-header */}
       <div className="border-b border-border bg-secondary/30">
         <div className="container-wide py-4">
-          <Link
-            to={mandate ? `/mandate/${mandate.id}` : "/dashboard"}
+          <button
+            onClick={() => navigate(-1)}
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to {mandate?.name || "mandate"}
-          </Link>
+            Back
+          </button>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
