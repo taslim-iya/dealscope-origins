@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +52,12 @@ export function Header() {
         </div>
 
         <div className="hidden lg:flex lg:items-center lg:gap-3">
+          <Button variant="outline" size="sm" asChild className="gap-1.5 border-accent/30 text-accent hover:bg-accent/5 hover:text-accent">
+            <Link to="/submit-deal">
+              <Plus className="h-3.5 w-3.5" />
+              Submit Deal
+            </Link>
+          </Button>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/login">Log in</Link>
           </Button>
@@ -96,6 +102,12 @@ export function Header() {
               </Link>
             ))}
             <div className="pt-4 flex flex-col gap-2">
+              <Button variant="outline" size="sm" asChild className="w-full gap-1.5 border-accent/30 text-accent">
+                <Link to="/submit-deal">
+                  <Plus className="h-3.5 w-3.5" />
+                  Submit Deal
+                </Link>
+              </Button>
               <Button variant="outline" size="sm" asChild className="w-full">
                 <Link to="/login">Log in</Link>
               </Button>
