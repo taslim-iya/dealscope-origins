@@ -62,7 +62,7 @@ serve(async (req) => {
       .from("scrape_logs")
       .insert({
         user_id: userId,
-        source: "Firecrawl Search",
+        source: "Marketplace Scraper",
         status: "running",
       })
       .select("id")
@@ -293,12 +293,12 @@ Focus on key investment highlights and potential.`,
       for (const deal of dealsToProcess) {
         if (!deal.company_name) continue;
 
-        const dealUrl = deal.source_url || `https://search.firecrawl.dev/#${encodeURIComponent(deal.company_name.substring(0, 50))}`;
+        const dealUrl = deal.source_url || `https://marketplace.search/#${encodeURIComponent(deal.company_name.substring(0, 50))}`;
 
         const { error: insertError } = await supabase.from("on_market_deals").upsert(
           {
             user_id: userId,
-            source: "Firecrawl Search",
+            source: "Marketplace Scraper",
             source_url: dealUrl,
             company_name: deal.company_name,
             asking_price: deal.asking_price || null,
