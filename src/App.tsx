@@ -22,6 +22,8 @@ import AdminCompanies from "./pages/AdminCompanies";
 import AdminMandateView from "./pages/AdminMandateView";
 import ListCompany from "./pages/ListCompany";
 import AdminListings from "./pages/AdminListings";
+import SubmitDeal from "./pages/SubmitDeal";
+import AdminSubmissions from "./pages/AdminSubmissions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +40,7 @@ const App = () => (
             <Route path="/off-market" element={<OffMarket />} />
             <Route path="/on-market" element={<OnMarket />} />
             <Route path="/list-company" element={<ListCompany />} />
+            <Route path="/submit-deal" element={<SubmitDeal />} />
             
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/about" element={<About />} />
@@ -52,6 +55,7 @@ const App = () => (
             <Route path="/admin/companies" element={<AdminCompanies />} />
             <Route path="/admin/listings" element={<AdminListings />} />
             <Route path="/admin/mandate/:id" element={<AdminMandateView />} />
+            <Route path="/admin/submissions" element={<AdminSubmissions />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

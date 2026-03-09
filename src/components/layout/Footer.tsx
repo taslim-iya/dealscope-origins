@@ -8,7 +8,7 @@ const footerLinks = {
   product: [
     { name: "Off-Market Origination", href: "/off-market" },
     { name: "On-Market Deal Intelligence", href: "/on-market" },
-    { name: "Platform", href: "/platform" },
+    { name: "Submit Deal", href: "/submit-deal" },
     { name: "Pricing", href: "/pricing" },
   ],
   company: [
