@@ -183,12 +183,17 @@ export type Database = {
       on_market_deals: {
         Row: {
           ai_summary: string | null
+          approval_status: string
           asking_price: string | null
           company_name: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
           created_at: string
           description: string | null
           id: string
           industry: string | null
+          listing_type: string
           location: string | null
           net_assets: string | null
           profit: string | null
@@ -196,16 +201,22 @@ export type Database = {
           scraped_at: string
           source: string
           source_url: string
+          submitted_by: string | null
           user_id: string
         }
         Insert: {
           ai_summary?: string | null
+          approval_status?: string
           asking_price?: string | null
           company_name: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           description?: string | null
           id?: string
           industry?: string | null
+          listing_type?: string
           location?: string | null
           net_assets?: string | null
           profit?: string | null
@@ -213,16 +224,22 @@ export type Database = {
           scraped_at?: string
           source: string
           source_url: string
+          submitted_by?: string | null
           user_id: string
         }
         Update: {
           ai_summary?: string | null
+          approval_status?: string
           asking_price?: string | null
           company_name?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           description?: string | null
           id?: string
           industry?: string | null
+          listing_type?: string
           location?: string | null
           net_assets?: string | null
           profit?: string | null
@@ -230,6 +247,7 @@ export type Database = {
           scraped_at?: string
           source?: string
           source_url?: string
+          submitted_by?: string | null
           user_id?: string
         }
         Relationships: []
