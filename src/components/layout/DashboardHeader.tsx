@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LogOut, Search, Target, Lock } from "lucide-react";
+import { LogOut, Search, Target, Lock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,6 +79,12 @@ export function DashboardHeader({ email, onSignOut }: DashboardHeaderProps) {
         </div>
 
         <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" asChild className="gap-1.5 border-accent/30 text-accent hover:bg-accent/5 hover:text-accent hidden sm:inline-flex">
+            <Link to="/submit-deal">
+              <Plus className="h-3.5 w-3.5" />
+              Submit Deal
+            </Link>
+          </Button>
           <span className="text-sm text-muted-foreground hidden md:block">
             {email}
           </span>
