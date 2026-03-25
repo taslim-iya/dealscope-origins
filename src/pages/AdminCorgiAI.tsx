@@ -101,6 +101,8 @@ export default function AdminCorgiAI() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [sortField, setSortField] = useState<keyof Company | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
