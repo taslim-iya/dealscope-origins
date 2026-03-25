@@ -105,6 +105,9 @@ export default function AdminCorgiAI() {
   const [webEnriching, setWebEnriching] = useState(false);
   const [sortField, setSortField] = useState<keyof Company | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
