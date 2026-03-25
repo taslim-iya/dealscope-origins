@@ -74,7 +74,7 @@ async function getAIMappings(
 function buildMappingFromAI(mappings: ColumnMapping[]): Map<string, { db_field: string; is_numeric: boolean; multiplier: number }> {
   const map = new Map();
   for (const m of mappings) {
-    if (m.confidence === "low") continue;
+    // Accept ALL confidence levels — better to have data than miss it
     map.set(m.csv_header, {
       db_field: m.db_field,
       is_numeric: m.is_numeric || false,
