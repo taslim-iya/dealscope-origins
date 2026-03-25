@@ -125,6 +125,10 @@ export default function AdminCompanies() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [mandateFilter, setMandateFilter] = useState<string>("all");
 
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
   // Unique filter options
   const [industries, setIndustries] = useState<string[]>([]);
   const [geographies, setGeographies] = useState<string[]>([]);
