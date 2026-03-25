@@ -11,6 +11,7 @@ import {
   Users,
   FileText,
   Trash2,
+  CheckSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,7 +83,12 @@ interface Company {
   asset_band: string | null;
   status: string | null;
   revenue: number | null;
+  profit_before_tax: number | null;
+  net_assets: number | null;
+  total_assets: number | null;
   website: string | null;
+  description_of_activities: string | null;
+  address: string | null;
   mandate_id: string;
   created_at: string;
   mandate?: Mandate;
@@ -117,6 +124,10 @@ export default function AdminCompanies() {
   const [geographyFilter, setGeographyFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [mandateFilter, setMandateFilter] = useState<string>("all");
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // Unique filter options
   const [industries, setIndustries] = useState<string[]>([]);
@@ -239,6 +250,38 @@ export default function AdminCompanies() {
         title: "Company deleted",
         description: `${companyName} has been removed.`,
       });
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBatchDeleting(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("companies").delete().in("id", ids);
+    if (error) {
+      toast({ title: "Batch delete failed", description: error.message, variant: "destructive" });
+    } else {
+      setCompanies((prev) => prev.filter((c) => !selectedIds.has(c.id)));
+      toast({ title: `Deleted ${ids.length} companies` });
+      setSelectedIds(new Set());
+    }
+    setBatchDeleting(false);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredCompanies.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredCompanies.map((c) => c.id)));
     }
   };
 
@@ -467,10 +510,41 @@ export default function AdminCompanies() {
           {/* Companies Table */}
           <Card>
             <CardHeader>
-              <CardTitle>All Companies</CardTitle>
-              <CardDescription>
-                Complete database of uploaded companies with client attribution
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle>All Companies</CardTitle>
+                  <CardDescription>
+                    Complete database of uploaded companies with client attribution
+                  </CardDescription>
+                </div>
+                {selectedIds.size > 0 && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" disabled={batchDeleting} className="gap-2">
+                        {batchDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        Delete {selectedIds.size} selected
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selectedIds.size} companies?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently remove the selected companies. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={handleBatchDelete}
+                        >
+                          Delete All
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -491,92 +565,90 @@ export default function AdminCompanies() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[40px]">
+                          <Checkbox
+                            checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+                            onCheckedChange={toggleSelectAll}
+                          />
+                        </TableHead>
                         <TableHead>Company Name</TableHead>
                         <TableHead>Industry</TableHead>
-                        <TableHead>Geography</TableHead>
+                        <TableHead className="max-w-[200px]">Description</TableHead>
+                        <TableHead>Country</TableHead>
                         <TableHead>Revenue</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Client</TableHead>
-                        <TableHead>Mandate</TableHead>
+                        <TableHead>PBT</TableHead>
+                        <TableHead>Total Assets</TableHead>
+                        <TableHead>Equity</TableHead>
+                        <TableHead>Website</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredCompanies.map((company) => (
                         <TableRow key={company.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/company/${company.id}`, { state: { from: 'admin' } })}>
-                          <TableCell className="font-medium">
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedIds.has(company.id)}
+                              onCheckedChange={() => toggleSelect(company.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium whitespace-nowrap">
                             {company.company_name}
                           </TableCell>
-                          <TableCell>{company.industry || "—"}</TableCell>
-                          <TableCell>{company.geography || "—"}</TableCell>
-                          <TableCell>
-                            {company.revenue
-                              ? formatCurrency(company.revenue)
-                              : company.revenue_band || "—"}
+                          <TableCell className="text-muted-foreground">{company.industry || "—"}</TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={company.description_of_activities || ""}>
+                            {company.description_of_activities || "—"}
                           </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={statusBadges[company.status || "new"] || statusBadges.new}
-                            >
-                              {(company.status || "new").charAt(0).toUpperCase() +
-                                (company.status || "new").slice(1)}
-                            </Badge>
+                          <TableCell className="text-muted-foreground whitespace-nowrap">{company.geography || "—"}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {company.revenue ? formatCurrency(company.revenue) : company.revenue_band || "—"}
                           </TableCell>
-                          <TableCell>
-                            <span className="text-sm">
-                              {company.mandate?.profile?.company_name ||
-                                company.mandate?.profile?.email ||
-                                "—"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Link
-                              to={`/mandate/${company.mandate_id}`}
-                              className="text-sm text-primary hover:underline"
-                            >
-                              {company.mandate?.name || "—"}
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); navigate(`/company/${company.id}`, { state: { from: 'admin' } }); }}
+                          <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {company.website ? (
+                              <a
+                                href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline text-sm inline-flex items-center gap-1"
                               >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={(e) => e.stopPropagation()}
+                                <ExternalLink className="h-3 w-3" />
+                                Link
+                              </a>
+                            ) : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete {company.company_name}?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently remove this company. This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleDeleteCompany(company.id, company.company_name)}
                                   >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete {company.company_name}?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will permanently remove this company and all associated data. This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      onClick={() => handleDeleteCompany(company.id, company.company_name)}
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </TableCell>
                         </TableRow>
                       ))}
