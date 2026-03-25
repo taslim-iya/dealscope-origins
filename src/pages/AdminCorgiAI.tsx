@@ -498,6 +498,8 @@ export default function AdminCorgiAI() {
                     onComplete={() => {
                       setBgProcessing(false);
                       fetchCompanies(mandateId);
+                      // Auto-trigger web enrichment after upload completes
+                      setTimeout(() => handleWebEnrich(), 2000);
                     }}
                   />
                 )}
