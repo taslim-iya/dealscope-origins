@@ -490,7 +490,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {uploadResult && (
+                {uploadResult && !bgProcessing && (
                   <div
                     className={`flex items-center gap-2 p-3 rounded-lg ${
                       uploadResult.success
@@ -505,6 +505,18 @@ export default function AdminDashboard() {
                     )}
                     <span className="text-sm">{uploadResult.message}</span>
                   </div>
+                )}
+                {bgProcessing && selectedMandate && (
+                  <UploadProgressIndicator
+                    mandateId={selectedMandate}
+                    isProcessing={bgProcessing}
+                    estimatedCompanies={estimatedCompanies}
+                    onComplete={() => {
+                      setBgProcessing(false);
+                      // Refresh data
+                      window.location.reload();
+                    }}
+                  />
                 )}
               </div>
             </CardContent>
