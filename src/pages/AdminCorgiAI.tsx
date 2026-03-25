@@ -197,13 +197,22 @@ export default function AdminCorgiAI() {
       const mId = await getOrCreateMandate();
       if (mId) {
         setMandateId(mId);
-        await fetchCompanies(mId);
+        await Promise.all([fetchCount(mId), fetchCompanies(mId, 0)]);
       } else {
         setLoading(false);
       }
     };
     if (isAdmin) init();
   }, [isAdmin]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setSelectedIds(new Set());
+    if (mandateId) {
+      setLoading(true);
+      fetchCompanies(mandateId, newPage);
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
