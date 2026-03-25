@@ -24,6 +24,7 @@ import ListCompany from "./pages/ListCompany";
 import AdminListings from "./pages/AdminListings";
 import SubmitDeal from "./pages/SubmitDeal";
 import AdminSubmissions from "./pages/AdminSubmissions";
+import AdminCorgiAI from "./pages/AdminCorgiAI";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/admin/listings" element={<AdminListings />} />
             <Route path="/admin/mandate/:id" element={<AdminMandateView />} />
             <Route path="/admin/submissions" element={<AdminSubmissions />} />
+            <Route path="/admin/corgi-ai" element={<AdminCorgiAI />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
