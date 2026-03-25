@@ -35,6 +35,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { UploadProgressIndicator } from "@/components/admin/UploadProgressIndicator";
 import { fileToCSV } from "@/lib/fileToCSV";
 import SuggestedMatches from "@/components/SuggestedMatches";
 
