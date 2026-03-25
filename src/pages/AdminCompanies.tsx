@@ -253,6 +253,38 @@ export default function AdminCompanies() {
     }
   };
 
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBatchDeleting(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("companies").delete().in("id", ids);
+    if (error) {
+      toast({ title: "Batch delete failed", description: error.message, variant: "destructive" });
+    } else {
+      setCompanies((prev) => prev.filter((c) => !selectedIds.has(c.id)));
+      toast({ title: `Deleted ${ids.length} companies` });
+      setSelectedIds(new Set());
+    }
+    setBatchDeleting(false);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredCompanies.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredCompanies.map((c) => c.id)));
+    }
+  };
+
   // Filter companies
   const filteredCompanies = companies.filter((company) => {
     const matchesSearch =
