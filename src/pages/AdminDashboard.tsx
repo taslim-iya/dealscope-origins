@@ -33,6 +33,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { fileToCSV } from "@/lib/fileToCSV";
 
 interface Profile {
   id: string;
@@ -195,7 +196,7 @@ export default function AdminDashboard() {
     setUploadResult(null);
 
     try {
-      const text = await file.text();
+      const text = await fileToCSV(file);
 
       const { data, error } = await supabase.functions.invoke("process-company-upload", {
         body: {
@@ -475,7 +476,7 @@ export default function AdminDashboard() {
                     <Input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.xlsx,.xls"
                       onChange={handleFileUpload}
                       disabled={!selectedMandate || uploading}
                       className="max-w-md"

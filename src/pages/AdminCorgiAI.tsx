@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { fileToCSV } from "@/lib/fileToCSV";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -178,7 +179,7 @@ export default function AdminCorgiAI() {
     setUploadResult(null);
 
     try {
-      const text = await file.text();
+      const text = await fileToCSV(file);
       const { data, error } = await supabase.functions.invoke("process-company-upload", {
         body: { mandate_id: mandateId, csv_content: text },
       });
@@ -306,7 +307,7 @@ export default function AdminCorgiAI() {
                   <Input
                     ref={fileInputRef}
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.xlsx,.xls"
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="max-w-md"
