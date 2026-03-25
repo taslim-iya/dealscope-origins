@@ -293,8 +293,8 @@ export default function AdminCorgiAI() {
 
       toast({ title: "Re-analysis started", description: data?.message || "AI is enriching company data from the stored file." });
       // Poll for updates
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 10000);
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 30000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 10000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 30000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Re-analysis failed";
       toast({ title: "Re-analysis failed", description: msg, variant: "destructive" });
