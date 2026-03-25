@@ -225,6 +225,23 @@ export default function AdminCompanies() {
     navigate("/");
   };
 
+  const handleDeleteCompany = async (companyId: string, companyName: string) => {
+    const { error } = await supabase.from("companies").delete().eq("id", companyId);
+    if (error) {
+      toast({
+        title: "Error deleting company",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setCompanies((prev) => prev.filter((c) => c.id !== companyId));
+      toast({
+        title: "Company deleted",
+        description: `${companyName} has been removed.`,
+      });
+    }
+  };
+
   // Filter companies
   const filteredCompanies = companies.filter((company) => {
     const matchesSearch =
