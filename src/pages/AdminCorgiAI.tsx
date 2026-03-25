@@ -165,32 +165,29 @@ export default function AdminCorgiAI() {
     return created.id;
   };
 
-  const fetchCompanies = async (mId: string) => {
-    const pageSize = 1000;
-    let from = 0;
-    let allRows: Company[] = [];
+  const fetchCount = async (mId: string) => {
+    const { count } = await supabase
+      .from("companies")
+      .select("*", { count: "exact", head: true })
+      .eq("mandate_id", mId);
+    setTotalCount(count || 0);
+  };
 
-    while (true) {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("mandate_id", mId)
-        .order("created_at", { ascending: false })
-        .range(from, from + pageSize - 1);
+  const fetchCompanies = async (mId: string, pageNum?: number) => {
+    const p = pageNum ?? page;
+    const from = p * PAGE_SIZE;
+    const { data, error } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("mandate_id", mId)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
 
-      if (error) {
-        console.error("Failed to fetch companies:", error);
-        break;
-      }
-
-      const batch = (data || []) as Company[];
-      allRows = allRows.concat(batch);
-
-      if (batch.length < pageSize) break;
-      from += pageSize;
+    if (error) {
+      console.error("Failed to fetch companies:", error);
+    } else {
+      setCompanies((data || []) as Company[]);
     }
-
-    setCompanies(allRows);
     setLoading(false);
   };
 
