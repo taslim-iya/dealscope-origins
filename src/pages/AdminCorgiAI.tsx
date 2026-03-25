@@ -14,6 +14,9 @@ import {
   Download,
   ExternalLink,
   Sparkles,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +101,8 @@ export default function AdminCorgiAI() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [sortField, setSortField] = useState<keyof Company | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -298,11 +303,38 @@ export default function AdminCorgiAI() {
     URL.revokeObjectURL(url);
   };
 
-  const filteredCompanies = companies.filter((c) =>
-    c.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.industry || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.geography || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const toggleSort = (field: keyof Company) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: keyof Company }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
+  const filteredCompanies = companies
+    .filter((c) =>
+      c.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.industry || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.geography || "").toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortField) return 0;
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      const cmp = typeof aVal === "number" && typeof bVal === "number"
+        ? aVal - bVal
+        : String(aVal).localeCompare(String(bVal));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   if (authLoading || checkingAdmin || loading) {
     return (
@@ -468,20 +500,36 @@ export default function AdminCorgiAI() {
                   <Table className="min-w-[1400px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[40px]">
+                         <TableHead className="w-[40px]">
                           <Checkbox
                             checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
                             onCheckedChange={toggleSelectAll}
                           />
                         </TableHead>
-                        <TableHead>Company Name</TableHead>
-                        <TableHead>Industry</TableHead>
-                        <TableHead className="max-w-[200px]">Description</TableHead>
-                        <TableHead>Country</TableHead>
-                        <TableHead>Revenue</TableHead>
-                        <TableHead>PBT</TableHead>
-                        <TableHead>Total Assets</TableHead>
-                        <TableHead>Equity</TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("company_name")}>
+                          <span className="inline-flex items-center">Company Name<SortIcon field="company_name" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("industry")}>
+                          <span className="inline-flex items-center">Industry<SortIcon field="industry" /></span>
+                        </TableHead>
+                        <TableHead className="max-w-[200px] cursor-pointer select-none" onClick={() => toggleSort("description_of_activities")}>
+                          <span className="inline-flex items-center">Description<SortIcon field="description_of_activities" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("geography")}>
+                          <span className="inline-flex items-center">Country<SortIcon field="geography" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("revenue")}>
+                          <span className="inline-flex items-center">Revenue<SortIcon field="revenue" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("profit_before_tax")}>
+                          <span className="inline-flex items-center">PBT<SortIcon field="profit_before_tax" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("total_assets")}>
+                          <span className="inline-flex items-center">Total Assets<SortIcon field="total_assets" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
+                          <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
+                        </TableHead>
                         <TableHead>Website</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
