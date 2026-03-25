@@ -553,100 +553,13 @@ export default function AdminCompanies() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[1400px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[40px]">
-                          <Checkbox
-                            checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
-                            onCheckedChange={toggleSelectAll}
-                          />
-                        </TableHead>
-                        <TableHead>Company Name</TableHead>
-                        <TableHead>Industry</TableHead>
-                        <TableHead className="max-w-[200px]">Description</TableHead>
-                        <TableHead>Country</TableHead>
-                        <TableHead>Revenue</TableHead>
-                        <TableHead>PBT</TableHead>
-                        <TableHead>Total Assets</TableHead>
-                        <TableHead>Equity</TableHead>
-                        <TableHead>Website</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCompanies.map((company) => (
-                        <TableRow key={company.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/company/${company.id}`, { state: { from: 'admin' } })}>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={selectedIds.has(company.id)}
-                              onCheckedChange={() => toggleSelect(company.id)}
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium whitespace-nowrap">
-                            {company.company_name}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{company.industry || "—"}</TableCell>
-                          <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={company.description_of_activities || ""}>
-                            {company.description_of_activities || "—"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground whitespace-nowrap">{company.geography || "—"}</TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {company.revenue ? formatCurrency(company.revenue) : company.revenue_band || "—"}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            {company.website ? (
-                              <a
-                                href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline text-sm inline-flex items-center gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                Link
-                              </a>
-                            ) : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete {company.company_name}?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently remove this company. This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    onClick={() => handleDeleteCompany(company.id, company.company_name)}
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <ResizableDataTable<Company>
+                  columns={tableColumns}
+                  data={filteredCompanies}
+                  rowKey={(c) => c.id}
+                  onRowClick={(c) => navigate(`/company/${c.id}`, { state: { from: 'admin' } })}
+                  emptyState={null}
+                />
               )}
             </CardContent>
           </Card>
