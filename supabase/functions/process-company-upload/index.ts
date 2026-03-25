@@ -102,11 +102,12 @@ function fallbackMapping(headers: string[]): Map<string, { db_field: string; is_
     profit_before_tax: ["profit_before_tax", "pbt", "profit", "operating_profit", "pre_tax_profit", "ebitda"],
     net_assets: ["net_assets", "net_asset_value", "nav", "shareholders_funds", "equity"],
     total_assets: ["total_assets", "assets", "total_asset_value", "gross_assets"],
+    number_of_employees: ["number_of_employees", "employees", "headcount", "staff", "fte", "workforce", "no_of_employees", "num_employees"],
     revenue_band: ["revenue_band"],
     asset_band: ["asset_band"],
     status: ["status"],
   };
-  const numericFields = new Set(["revenue", "profit_before_tax", "net_assets", "total_assets"]);
+  const numericFields = new Set(["revenue", "profit_before_tax", "net_assets", "total_assets", "number_of_employees"]);
 
   for (const h of headers) {
     const norm = normalizeHeader(h);
