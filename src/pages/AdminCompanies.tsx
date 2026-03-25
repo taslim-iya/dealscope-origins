@@ -562,7 +562,7 @@ export default function AdminCompanies() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-[1400px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[40px]">
