@@ -47,6 +47,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { UploadProgressIndicator } from "@/components/admin/UploadProgressIndicator";
 
 const CORGI_AI_MANDATE_NAME = "Corgi AI";
 
@@ -90,6 +91,8 @@ export default function AdminCorgiAI() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [bgProcessing, setBgProcessing] = useState(false);
+  const [estimatedCompanies, setEstimatedCompanies] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
@@ -190,9 +193,10 @@ export default function AdminCorgiAI() {
 
       if (error) throw error;
 
-      setUploadResult({ success: true, message: `Successfully added ${data.companies_added} companies` });
-      toast({ title: "Upload successful", description: `Added ${data.companies_added} companies for Corgi AI` });
-      fetchCompanies(mandateId);
+      setUploadResult({ success: true, message: data.message || `Processing ~${data.estimated_companies} companies in background` });
+      setEstimatedCompanies(data.estimated_companies || 0);
+      setBgProcessing(true);
+      toast({ title: "Upload started", description: data.message });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Upload failed";
       setUploadResult({ success: false, message: msg });
@@ -350,11 +354,22 @@ export default function AdminCorgiAI() {
                   />
                   {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
                 </div>
-                {uploadResult && (
+                {uploadResult && !bgProcessing && (
                   <div className={`flex items-center gap-2 p-3 rounded-lg ${uploadResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
                     {uploadResult.success ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
                     <span className="text-sm">{uploadResult.message}</span>
                   </div>
+                )}
+                {bgProcessing && mandateId && (
+                  <UploadProgressIndicator
+                    mandateId={mandateId}
+                    isProcessing={bgProcessing}
+                    estimatedCompanies={estimatedCompanies}
+                    onComplete={() => {
+                      setBgProcessing(false);
+                      fetchCompanies(mandateId);
+                    }}
+                  />
                 )}
               </div>
             </CardContent>

@@ -35,6 +35,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { UploadProgressIndicator } from "@/components/admin/UploadProgressIndicator";
 import { fileToCSV } from "@/lib/fileToCSV";
 import SuggestedMatches from "@/components/SuggestedMatches";
 
@@ -123,6 +124,8 @@ export default function AdminMandateView() {
     success: boolean;
     message: string;
   } | null>(null);
+  const [bgProcessing, setBgProcessing] = useState(false);
+  const [estimatedCompanies, setEstimatedCompanies] = useState(0);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, any> | null>(null);
   const [analyzingCsv, setAnalyzingCsv] = useState(false);
   const [lastCsvContent, setLastCsvContent] = useState<string | null>(null);
@@ -240,19 +243,18 @@ export default function AdminMandateView() {
 
       setUploadResult({
         success: true,
-        message: `Successfully added ${data.companies_added} companies`,
+        message: data.message || `Processing ~${data.estimated_companies} companies in background`,
       });
+      setEstimatedCompanies(data.estimated_companies || 0);
+      setBgProcessing(true);
 
       toast({
-        title: "Upload successful",
-        description: `Added ${data.companies_added} companies`,
+        title: "Upload started",
+        description: data.message,
       });
 
       // Trigger AI analysis in background
       analyzeWithAI(text);
-
-      // Refresh data
-      fetchData();
     } catch (error) {
       console.error("Upload error:", error);
       setUploadResult({
@@ -471,7 +473,7 @@ export default function AdminMandateView() {
                       {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
                     </div>
 
-                    {uploadResult && (
+                    {uploadResult && !bgProcessing && (
                       <div
                         className={`flex items-center gap-2 p-3 rounded-lg ${
                           uploadResult.success
@@ -486,6 +488,17 @@ export default function AdminMandateView() {
                         )}
                         <span className="text-sm">{uploadResult.message}</span>
                       </div>
+                    )}
+                    {bgProcessing && id && (
+                      <UploadProgressIndicator
+                        mandateId={id}
+                        isProcessing={bgProcessing}
+                        estimatedCompanies={estimatedCompanies}
+                        onComplete={() => {
+                          setBgProcessing(false);
+                          fetchData();
+                        }}
+                      />
                     )}
 
                     {analyzingCsv && (

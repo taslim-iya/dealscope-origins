@@ -34,6 +34,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fileToCSV } from "@/lib/fileToCSV";
+import { UploadProgressIndicator } from "@/components/admin/UploadProgressIndicator";
 
 interface Profile {
   id: string;
@@ -78,6 +79,8 @@ export default function AdminDashboard() {
     success: boolean;
     message: string;
   } | null>(null);
+  const [bgProcessing, setBgProcessing] = useState(false);
+  const [estimatedCompanies, setEstimatedCompanies] = useState(0);
   const [allUsers, setAllUsers] = useState<UserWithRole[]>([]);
   const [loadingRoleChange, setLoadingRoleChange] = useState<string | null>(null);
 
@@ -211,12 +214,14 @@ export default function AdminDashboard() {
 
       setUploadResult({
         success: true,
-        message: `Successfully added ${data.companies_added} companies to "${data.mandate_name}"`,
+        message: data.message || `Processing ~${data.estimated_companies} companies in background`,
       });
+      setEstimatedCompanies(data.estimated_companies || 0);
+      setBgProcessing(true);
 
       toast({
-        title: "Upload successful",
-        description: `Added ${data.companies_added} companies`,
+        title: "Upload started",
+        description: data.message,
       });
 
       // Refresh mandates
@@ -485,7 +490,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {uploadResult && (
+                {uploadResult && !bgProcessing && (
                   <div
                     className={`flex items-center gap-2 p-3 rounded-lg ${
                       uploadResult.success
@@ -500,6 +505,18 @@ export default function AdminDashboard() {
                     )}
                     <span className="text-sm">{uploadResult.message}</span>
                   </div>
+                )}
+                {bgProcessing && selectedMandate && (
+                  <UploadProgressIndicator
+                    mandateId={selectedMandate}
+                    isProcessing={bgProcessing}
+                    estimatedCompanies={estimatedCompanies}
+                    onComplete={() => {
+                      setBgProcessing(false);
+                      // Refresh data
+                      window.location.reload();
+                    }}
+                  />
                 )}
               </div>
             </CardContent>
