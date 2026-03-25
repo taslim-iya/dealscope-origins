@@ -587,7 +587,34 @@ export default function AdminCorgiAI() {
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={handleBatchDelete}
                           >
-                            Delete All
+                            Delete Selected
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                  {companies.length > 0 && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" disabled={deletingAll} className="gap-2">
+                          {deletingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          Delete All ({companies.length})
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete ALL {companies.length} companies?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently remove every company in this mandate. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={handleDeleteAll}
+                          >
+                            Delete All Companies
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
