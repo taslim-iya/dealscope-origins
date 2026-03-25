@@ -193,9 +193,10 @@ export default function AdminCorgiAI() {
 
       if (error) throw error;
 
-      setUploadResult({ success: true, message: `Successfully added ${data.companies_added} companies` });
-      toast({ title: "Upload successful", description: `Added ${data.companies_added} companies for Corgi AI` });
-      fetchCompanies(mandateId);
+      setUploadResult({ success: true, message: data.message || `Processing ~${data.estimated_companies} companies in background` });
+      setEstimatedCompanies(data.estimated_companies || 0);
+      setBgProcessing(true);
+      toast({ title: "Upload started", description: data.message });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Upload failed";
       setUploadResult({ success: false, message: msg });
