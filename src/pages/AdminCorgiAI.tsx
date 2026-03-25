@@ -179,7 +179,7 @@ export default function AdminCorgiAI() {
     setUploadResult(null);
 
     try {
-      const text = await file.text();
+      const text = await fileToCSV(file);
       const { data, error } = await supabase.functions.invoke("process-company-upload", {
         body: { mandate_id: mandateId, csv_content: text },
       });
