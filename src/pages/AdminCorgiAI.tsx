@@ -166,7 +166,7 @@ export default function AdminCorgiAI() {
       .select("*")
       .eq("mandate_id", mId)
       .order("created_at", { ascending: false })
-      .limit(100000);
+      .limit(1000000);
 
     if (!error && data) setCompanies(data as Company[]);
     setLoading(false);

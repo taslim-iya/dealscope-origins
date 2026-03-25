@@ -193,7 +193,7 @@ export default function AdminCompanies() {
         .from("companies")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(100000);
+        .limit(1000000);
 
       if (companiesData && mandatesData) {
         // Map mandates to companies
@@ -323,6 +323,7 @@ export default function AdminCompanies() {
       minWidth: 100,
       cellClassName: "font-medium",
       render: (c) => c.company_name,
+      sortKey: (c) => c.company_name,
     },
     {
       id: "industry",
@@ -331,6 +332,7 @@ export default function AdminCompanies() {
       minWidth: 80,
       cellClassName: "text-muted-foreground",
       render: (c) => c.industry || "—",
+      sortKey: (c) => c.industry,
     },
     {
       id: "description",
@@ -341,6 +343,7 @@ export default function AdminCompanies() {
       render: (c) => (
         <span title={c.description_of_activities || ""}>{c.description_of_activities || "—"}</span>
       ),
+      sortKey: (c) => c.description_of_activities,
     },
     {
       id: "country",
@@ -349,6 +352,7 @@ export default function AdminCompanies() {
       minWidth: 70,
       cellClassName: "text-muted-foreground",
       render: (c) => c.geography || "—",
+      sortKey: (c) => c.geography,
     },
     {
       id: "revenue",
@@ -356,6 +360,7 @@ export default function AdminCompanies() {
       defaultWidth: 100,
       minWidth: 70,
       render: (c) => c.revenue ? formatCurrency(c.revenue) : c.revenue_band || "—",
+      sortKey: (c) => c.revenue,
     },
     {
       id: "pbt",
@@ -363,6 +368,7 @@ export default function AdminCompanies() {
       defaultWidth: 90,
       minWidth: 60,
       render: (c) => formatCurrency(c.profit_before_tax),
+      sortKey: (c) => c.profit_before_tax,
     },
     {
       id: "total_assets",
@@ -370,6 +376,7 @@ export default function AdminCompanies() {
       defaultWidth: 100,
       minWidth: 70,
       render: (c) => formatCurrency(c.total_assets),
+      sortKey: (c) => c.total_assets,
     },
     {
       id: "equity",
@@ -377,6 +384,7 @@ export default function AdminCompanies() {
       defaultWidth: 90,
       minWidth: 60,
       render: (c) => formatCurrency(c.net_assets),
+      sortKey: (c) => c.net_assets,
     },
     {
       id: "website",

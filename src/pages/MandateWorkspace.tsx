@@ -167,7 +167,7 @@ export default function MandateWorkspace() {
         .select("*")
         .eq("mandate_id", id)
         .order("created_at", { ascending: false })
-        .limit(100000);
+        .limit(1000000);
 
       if (!companiesError && companiesData) {
         setCompanies(companiesData as Company[]);
