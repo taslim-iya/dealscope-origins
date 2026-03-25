@@ -135,11 +135,14 @@ function parseCSVWithMapping(
   const headers = parseCSVLine(lines[0]);
   const companies: CompanyRow[] = [];
 
-  const parseNumeric = (value: string, multiplier: number): number | undefined => {
+    const parseNumeric = (value: string, multiplier: number): number | undefined => {
     if (!value) return undefined;
     const cleaned = value.replace(/[£$,\s%]/g, "");
     const num = parseFloat(cleaned);
-    return isNaN(num) ? undefined : num * multiplier;
+    if (isNaN(num)) return undefined;
+    // All financial values in source data are stated in thousands — multiply by 1000
+    const adjusted = num * multiplier * 1000;
+    return adjusted;
   };
 
   for (let i = 1; i < lines.length; i++) {
