@@ -535,7 +535,7 @@ export default function AdminCompanies() {
               <CardContent>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-primary" />
-                  <span className="text-2xl font-semibold">{companies.length}</span>
+                  <span className="text-2xl font-semibold">{totalCount.toLocaleString()}</span>
                 </div>
               </CardContent>
             </Card>
