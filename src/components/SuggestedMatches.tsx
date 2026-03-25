@@ -95,7 +95,8 @@ export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedM
       const { data: companiesData, error } = await supabase
         .from("companies")
         .select("*")
-        .neq("mandate_id", mandate.id);
+        .neq("mandate_id", mandate.id)
+        .limit(100000);
 
       if (error) {
         console.error("Error fetching companies:", error);
