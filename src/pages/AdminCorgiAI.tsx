@@ -354,11 +354,22 @@ export default function AdminCorgiAI() {
                   />
                   {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
                 </div>
-                {uploadResult && (
+                {uploadResult && !bgProcessing && (
                   <div className={`flex items-center gap-2 p-3 rounded-lg ${uploadResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
                     {uploadResult.success ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
                     <span className="text-sm">{uploadResult.message}</span>
                   </div>
+                )}
+                {bgProcessing && mandateId && (
+                  <UploadProgressIndicator
+                    mandateId={mandateId}
+                    isProcessing={bgProcessing}
+                    estimatedCompanies={estimatedCompanies}
+                    onComplete={() => {
+                      setBgProcessing(false);
+                      fetchCompanies(mandateId);
+                    }}
+                  />
                 )}
               </div>
             </CardContent>
