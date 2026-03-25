@@ -216,7 +216,11 @@ export default function AdminCorgiAI() {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !mandateId) return;
+    console.log("[Upload] file:", file?.name, "mandateId:", mandateId);
+    if (!file || !mandateId) {
+      console.log("[Upload] Aborted - file:", !!file, "mandateId:", !!mandateId);
+      return;
+    }
 
     setUploading(true);
     setUploadResult(null);
