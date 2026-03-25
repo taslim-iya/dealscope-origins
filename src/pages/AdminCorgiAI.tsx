@@ -585,128 +585,129 @@ export default function AdminCorgiAI() {
                   {companies.length === 0 ? "No companies uploaded yet. Upload a CSV or Excel file to get started." : "No companies match your search."}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[1400px]">
-                    <TableHeader>
-                      <TableRow>
-                         <TableHead className="w-[40px]">
-                          <Checkbox
-                            checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
-                            onCheckedChange={toggleSelectAll}
-                          />
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("company_name")}>
-                          <span className="inline-flex items-center">Company Name<SortIcon field="company_name" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("industry")}>
-                          <span className="inline-flex items-center">Industry<SortIcon field="industry" /></span>
-                        </TableHead>
-                        <TableHead className="max-w-[200px] cursor-pointer select-none" onClick={() => toggleSort("description_of_activities")}>
-                          <span className="inline-flex items-center">Description<SortIcon field="description_of_activities" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("geography")}>
-                          <span className="inline-flex items-center">Country<SortIcon field="geography" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("revenue")}>
-                          <span className="inline-flex items-center">Revenue<SortIcon field="revenue" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("profit_before_tax")}>
-                          <span className="inline-flex items-center">PBT<SortIcon field="profit_before_tax" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("total_assets")}>
-                          <span className="inline-flex items-center">Total Assets<SortIcon field="total_assets" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
-                          <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
-                        </TableHead>
-                        <TableHead>Website</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCompanies.map((company) => (
-                        <TableRow key={company.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/company/${company.id}`)}>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
+                <>
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[1400px]">
+                      <TableHeader>
+                        <TableRow>
+                           <TableHead className="w-[40px]">
                             <Checkbox
-                              checked={selectedIds.has(company.id)}
-                              onCheckedChange={() => toggleSelect(company.id)}
+                              checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+                              onCheckedChange={toggleSelectAll}
                             />
-                          </TableCell>
-                          <TableCell className="font-medium whitespace-nowrap">{company.company_name}</TableCell>
-                          <TableCell className="text-muted-foreground">{company.industry || "—"}</TableCell>
-                          <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={company.description_of_activities || ""}>
-                            {company.description_of_activities || "—"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground whitespace-nowrap">{company.geography || "—"}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.revenue)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            {company.website ? (
-                              <a
-                                href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline text-sm inline-flex items-center gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                Link
-                              </a>
-                            ) : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete company?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently remove "{company.company_name}" from the database.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteCompany(company.id)}>
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </TableCell>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("company_name")}>
+                            <span className="inline-flex items-center">Company Name<SortIcon field="company_name" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("industry")}>
+                            <span className="inline-flex items-center">Industry<SortIcon field="industry" /></span>
+                          </TableHead>
+                          <TableHead className="max-w-[200px] cursor-pointer select-none" onClick={() => toggleSort("description_of_activities")}>
+                            <span className="inline-flex items-center">Description<SortIcon field="description_of_activities" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("geography")}>
+                            <span className="inline-flex items-center">Country<SortIcon field="geography" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("revenue")}>
+                            <span className="inline-flex items-center">Revenue<SortIcon field="revenue" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("profit_before_tax")}>
+                            <span className="inline-flex items-center">PBT<SortIcon field="profit_before_tax" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("total_assets")}>
+                            <span className="inline-flex items-center">Total Assets<SortIcon field="total_assets" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
+                            <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
+                          </TableHead>
+                          <TableHead>Website</TableHead>
+                          <TableHead></TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                {/* Pagination */}
-                {totalCount > PAGE_SIZE && (
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                    <p className="text-sm text-muted-foreground">
-                      Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" disabled={page === 0} onClick={() => handlePageChange(page - 1)}>
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {page + 1} of {Math.ceil(totalCount / PAGE_SIZE)}
-                      </span>
-                      <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= totalCount} onClick={() => handlePageChange(page + 1)}>
-                        Next
-                      </Button>
-                    </div>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCompanies.map((company) => (
+                          <TableRow key={company.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/company/${company.id}`)}>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedIds.has(company.id)}
+                                onCheckedChange={() => toggleSelect(company.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium whitespace-nowrap">{company.company_name}</TableCell>
+                            <TableCell className="text-muted-foreground">{company.industry || "—"}</TableCell>
+                            <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={company.description_of_activities || ""}>
+                              {company.description_of_activities || "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground whitespace-nowrap">{company.geography || "—"}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.revenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              {company.website ? (
+                                <a
+                                  href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline text-sm inline-flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Link
+                                </a>
+                              ) : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete company?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently remove "{company.company_name}" from the database.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteCompany(company.id)}>
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
-                )}
+                  {totalCount > PAGE_SIZE && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <p className="text-sm text-muted-foreground">
+                        Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => handlePageChange(page - 1)}>
+                          Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          Page {page + 1} of {Math.ceil(totalCount / PAGE_SIZE)}
+                        </span>
+                        <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= totalCount} onClick={() => handlePageChange(page + 1)}>
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
