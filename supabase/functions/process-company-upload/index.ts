@@ -302,15 +302,62 @@ ACCEPT entries that look like real business/company names, even if abbreviated o
   return validCompanies;
 }
 
-async function insertInBatches(
+async function upsertInBatches(
   supabase: ReturnType<typeof createClient>,
   mandateId: string,
   companies: CompanyRow[]
-): Promise<number> {
+): Promise<{ inserted: number; updated: number }> {
   let totalInserted = 0;
+  let totalUpdated = 0;
 
-  for (let i = 0; i < companies.length; i += BATCH_SIZE) {
-    const batch = companies.slice(i, i + BATCH_SIZE);
+  // First, fetch all existing company names for this mandate to detect duplicates
+  const existingNames = new Map<string, string>(); // normalized name -> id
+  let from = 0;
+  const FETCH_SIZE = 1000;
+  while (true) {
+    const { data } = await supabase
+      .from("companies")
+      .select("id, company_name")
+      .eq("mandate_id", mandateId)
+      .range(from, from + FETCH_SIZE - 1);
+    if (!data || data.length === 0) break;
+    for (const row of data) {
+      existingNames.set(row.company_name.trim().toUpperCase(), row.id);
+    }
+    if (data.length < FETCH_SIZE) break;
+    from += FETCH_SIZE;
+  }
+  console.log(`Found ${existingNames.size} existing companies in mandate for dedup`);
+
+  const toInsert: CompanyRow[] = [];
+  const toUpdate: { id: string; data: Record<string, unknown> }[] = [];
+
+  for (const c of companies) {
+    const key = (c.company_name as string).trim().toUpperCase();
+    const existingId = existingNames.get(key);
+    if (existingId) {
+      // Update existing record with new non-null values
+      const updateData: Record<string, unknown> = {};
+      for (const [field, value] of Object.entries(c)) {
+        if (field === "company_name" || field === "status") continue;
+        if (value !== null && value !== undefined && value !== "") {
+          updateData[field] = value;
+        }
+      }
+      if (Object.keys(updateData).length > 0) {
+        toUpdate.push({ id: existingId, data: updateData });
+      }
+    } else {
+      toInsert.push(c);
+      existingNames.set(key, "pending"); // prevent dups within same upload
+    }
+  }
+
+  console.log(`Dedup result: ${toInsert.length} new, ${toUpdate.length} to update`);
+
+  // Batch insert new companies
+  for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+    const batch = toInsert.slice(i, i + BATCH_SIZE);
     const rows = batch.map((c) => ({
       mandate_id: mandateId,
       company_name: c.company_name as string,
@@ -324,6 +371,7 @@ async function insertInBatches(
       profit_before_tax: (c.profit_before_tax as number) || null,
       net_assets: (c.net_assets as number) || null,
       total_assets: (c.total_assets as number) || null,
+      number_of_employees: (c.number_of_employees as number) || null,
       revenue_band: (c.revenue_band as string) || null,
       asset_band: (c.asset_band as string) || null,
       status: (c.status as string) || "new",
@@ -335,14 +383,31 @@ async function insertInBatches(
       .select("id");
 
     if (error) {
-      console.error(`Batch ${i / BATCH_SIZE + 1} insert error:`, error.message);
+      console.error(`Insert batch ${Math.floor(i / BATCH_SIZE) + 1} error:`, error.message);
     } else {
       totalInserted += data?.length || 0;
     }
-    console.log(`Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}, total so far: ${totalInserted}`);
   }
 
-  return totalInserted;
+  // Batch update existing companies
+  const UPDATE_BATCH = 50;
+  for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH) {
+    const batch = toUpdate.slice(i, i + UPDATE_BATCH);
+    const promises = batch.map(({ id, data }) =>
+      supabase.from("companies").update(data).eq("id", id)
+    );
+    const results = await Promise.all(promises);
+    for (const r of results) {
+      if (r.error) {
+        console.error("Update error:", r.error.message);
+      } else {
+        totalUpdated++;
+      }
+    }
+  }
+
+  console.log(`Upsert complete: ${totalInserted} inserted, ${totalUpdated} updated`);
+  return { inserted: totalInserted, updated: totalUpdated };
 }
 
 async function storeCSV(
