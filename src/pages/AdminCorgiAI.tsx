@@ -669,6 +669,9 @@ export default function AdminCorgiAI() {
                           <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
                             <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
                           </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("number_of_employees")}>
+                            <span className="inline-flex items-center">Employees<SortIcon field="number_of_employees" /></span>
+                          </TableHead>
                           <TableHead>Website</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
