@@ -27,6 +27,7 @@ export type Database = {
           industry: string | null
           mandate_id: string
           net_assets: number | null
+          number_of_employees: number | null
           profit_before_tax: number | null
           revenue: number | null
           revenue_band: string | null
@@ -46,6 +47,7 @@ export type Database = {
           industry?: string | null
           mandate_id: string
           net_assets?: number | null
+          number_of_employees?: number | null
           profit_before_tax?: number | null
           revenue?: number | null
           revenue_band?: string | null
@@ -65,6 +67,7 @@ export type Database = {
           industry?: string | null
           mandate_id?: string
           net_assets?: number | null
+          number_of_employees?: number | null
           profit_before_tax?: number | null
           revenue?: number | null
           revenue_band?: string | null
