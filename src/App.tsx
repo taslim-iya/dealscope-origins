@@ -24,6 +24,7 @@ import ListCompany from "./pages/ListCompany";
 import AdminListings from "./pages/AdminListings";
 import SubmitDeal from "./pages/SubmitDeal";
 import AdminSubmissions from "./pages/AdminSubmissions";
+import AdminCorgiAI from "./pages/AdminCorgiAI";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
