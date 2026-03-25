@@ -523,6 +523,7 @@ export default function AdminCorgiAI() {
                     estimatedCompanies={estimatedCompanies}
                     onComplete={() => {
                       setBgProcessing(false);
+                      fetchCount(mandateId);
                       fetchCompanies(mandateId);
                       // Auto-trigger web enrichment after upload completes
                       setTimeout(() => handleWebEnrich(), 2000);
