@@ -507,13 +507,19 @@ async function processInBackground(
     });
     console.log(`Background: ${deduplicated.length} unique companies after deduplication (${validatedCompanies.length - deduplicated.length} duplicates removed)`);
 
-    const totalInserted = await insertInBatches(supabase, mandateId, deduplicated);
-    console.log(`Background: inserted ${totalInserted} companies total`);
+    const { inserted: totalInserted, updated: totalUpdated } = await upsertInBatches(supabase, mandateId, deduplicated);
+    console.log(`Background: ${totalInserted} inserted, ${totalUpdated} updated`);
+
+    // Get actual total count for mandate
+    const { count: actualCount } = await supabase
+      .from("companies")
+      .select("*", { count: "exact", head: true })
+      .eq("mandate_id", mandateId);
 
     // Update mandate
     await supabase
       .from("mandates")
-      .update({ companies_delivered: totalInserted, status: "active" })
+      .update({ companies_delivered: actualCount || totalInserted, status: "active" })
       .eq("id", mandateId);
 
     // Update domain allowance
