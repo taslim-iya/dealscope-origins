@@ -212,8 +212,7 @@ async function enrichInBackground(
     // Build header->field map
     const headerToField: Record<string, { db_field: string; is_numeric: boolean; multiplier: number }> = {};
     for (const m of mappings) {
-      // Only use high/medium confidence mappings
-      if (m.confidence === "low") continue;
+      // Accept ALL confidence levels to maximize data capture
       headerToField[m.csv_header] = {
         db_field: m.db_field,
         is_numeric: m.is_numeric || false,

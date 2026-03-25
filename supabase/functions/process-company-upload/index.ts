@@ -74,7 +74,7 @@ async function getAIMappings(
 function buildMappingFromAI(mappings: ColumnMapping[]): Map<string, { db_field: string; is_numeric: boolean; multiplier: number }> {
   const map = new Map();
   for (const m of mappings) {
-    if (m.confidence === "low") continue;
+    // Accept ALL confidence levels — better to have data than miss it
     map.set(m.csv_header, {
       db_field: m.db_field,
       is_numeric: m.is_numeric || false,
@@ -270,12 +270,13 @@ async function processInBackground(
     let mapping: Map<string, { db_field: string; is_numeric: boolean; multiplier: number }>;
     try {
       const aiMappings = await getAIMappings(headers, sampleRows);
+      console.log("AI mappings received:", JSON.stringify(aiMappings));
       if (aiMappings.length > 0) {
         mapping = buildMappingFromAI(aiMappings);
-        console.log(`Using AI mapping with ${mapping.size} fields`);
+        console.log(`Using AI mapping with ${mapping.size} fields:`, JSON.stringify([...mapping.entries()]));
       } else {
         mapping = fallbackMapping(headers);
-        console.log(`Using fallback mapping with ${mapping.size} fields`);
+        console.log(`Using fallback mapping with ${mapping.size} fields:`, JSON.stringify([...mapping.entries()]));
       }
     } catch (e) {
       console.warn("AI mapping error, using fallback:", e);

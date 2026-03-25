@@ -41,27 +41,35 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a data mapping expert. Given CSV column headers and sample data, determine which CSV column maps to each company database field. 
+            content: `You are a data mapping expert. Given CSV column headers and sample data, determine which CSV column maps to each company database field.
 
 The target database fields are:
 - company_name: The name of the company/business
-- geography: Location, region, country, city, county, postcode
-- industry: Industry sector, SIC description, business type, trade classification
-- description_of_activities: What the company does, business description, products/services
-- companies_house_number: Company registration number, CRN, BVD ID
-- website: Company website URL
-- address: Full address, registered office address
-- revenue: Annual revenue, turnover, sales (numeric)
-- profit_before_tax: Profit, PBT, EBITDA, operating profit (numeric)
-- net_assets: Net assets, shareholders funds, equity, NAV (numeric)
+- geography: Location, region, country, city, county, postcode, town
+- industry: Industry sector, SIC description, SIC text, business type, trade classification, sector
+- description_of_activities: What the company does, business description, overview, principal activities, products/services, trade description
+- companies_house_number: Company registration number, CRN, BVD ID, company number, CH number
+- website: Company website URL, web address
+- address: Full address, registered office address, office address
+- revenue: Annual revenue, turnover, sales, operating revenue (numeric)
+- profit_before_tax: Profit, PBT, EBITDA, operating profit, pre-tax profit (numeric)
+- net_assets: Net assets, shareholders funds, equity, NAV, net asset value (numeric)
 - total_assets: Total assets, gross assets (numeric)
 - revenue_band: Revenue range/band (text)
 - asset_band: Asset range/band (text)
 - status: Company status
 
-Be smart about it — look at both the header names AND the sample data to determine the best mapping. For example if a column is called "Turnover (£000s)" it maps to revenue. If data looks like "Manufacturing of widgets" it's likely description_of_activities even if the header is ambiguous.
+IMPORTANT: Map as many columns as possible. Be GENEROUS with mappings — it is far better to map a column that might be relevant than to miss a column that has useful data. Look at both the header names AND the sample data to determine mappings.
 
-Return ONLY mappings you are confident about. Use the original CSV header name (exactly as provided) as the key.`,
+For example:
+- "Turnover (£000s)" -> revenue with multiplier 1000
+- "SIC 2007 Description" -> industry
+- "Trade description" -> description_of_activities
+- "Postcode" -> geography
+- Any column with URLs -> website
+- "Registered office address" -> address
+
+Map EVERY column that could reasonably correspond to a database field. Use "low" confidence only if truly uncertain, but still include it.`,
           },
           {
             role: "user",
