@@ -163,9 +163,9 @@ function parseCSVWithMapping(
       if (!rawValue) return;
 
       if (info.is_numeric) {
-        const num = parseNumeric(rawValue, info.multiplier);
+        const num = parseNumeric(rawValue, info.multiplier, info.db_field);
         if (num !== undefined) {
-          // Sanity check: revenue/financial fields should be > 1000 to avoid year-like values (e.g. 1820)
+          // Sanity check: financial fields should be > 1000 to avoid year-like values
           if (["revenue", "profit_before_tax", "net_assets", "total_assets"].includes(info.db_field) && num > 0 && num < 1000) {
             // Skip — likely a year or code, not a financial value
           } else {
