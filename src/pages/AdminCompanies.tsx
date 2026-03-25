@@ -121,6 +121,11 @@ export default function AdminCompanies() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
 
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 100;
+
   // Unique filter options
   const [industries, setIndustries] = useState<string[]>([]);
   const [geographies, setGeographies] = useState<string[]>([]);
