@@ -412,12 +412,18 @@ async function processInBackground(
       return;
     }
 
-    // AI validation: filter out non-company entries
-    const validatedCompanies = await validateCompanyNames(companies);
-    console.log(`Background: ${validatedCompanies.length} companies passed AI validation (${companies.length - validatedCompanies.length} rejected)`);
+    // AI validation: only run for small uploads to avoid timeout
+    let validatedCompanies: CompanyRow[];
+    if (companies.length <= 500) {
+      validatedCompanies = await validateCompanyNames(companies);
+      console.log(`Background: ${validatedCompanies.length} companies passed AI validation (${companies.length - validatedCompanies.length} rejected)`);
+    } else {
+      console.log(`Background: Skipping AI validation for large upload (${companies.length} companies) to avoid timeout`);
+      validatedCompanies = companies;
+    }
 
     if (validatedCompanies.length === 0) {
-      console.error("Background: No valid companies found after AI validation");
+      console.error("Background: No valid companies found after validation");
       return;
     }
 
