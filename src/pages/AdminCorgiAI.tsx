@@ -500,20 +500,36 @@ export default function AdminCorgiAI() {
                   <Table className="min-w-[1400px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[40px]">
+                         <TableHead className="w-[40px]">
                           <Checkbox
                             checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
                             onCheckedChange={toggleSelectAll}
                           />
                         </TableHead>
-                        <TableHead>Company Name</TableHead>
-                        <TableHead>Industry</TableHead>
-                        <TableHead className="max-w-[200px]">Description</TableHead>
-                        <TableHead>Country</TableHead>
-                        <TableHead>Revenue</TableHead>
-                        <TableHead>PBT</TableHead>
-                        <TableHead>Total Assets</TableHead>
-                        <TableHead>Equity</TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("company_name")}>
+                          <span className="inline-flex items-center">Company Name<SortIcon field="company_name" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("industry")}>
+                          <span className="inline-flex items-center">Industry<SortIcon field="industry" /></span>
+                        </TableHead>
+                        <TableHead className="max-w-[200px] cursor-pointer select-none" onClick={() => toggleSort("description_of_activities")}>
+                          <span className="inline-flex items-center">Description<SortIcon field="description_of_activities" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("geography")}>
+                          <span className="inline-flex items-center">Country<SortIcon field="geography" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("revenue")}>
+                          <span className="inline-flex items-center">Revenue<SortIcon field="revenue" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("profit_before_tax")}>
+                          <span className="inline-flex items-center">PBT<SortIcon field="profit_before_tax" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("total_assets")}>
+                          <span className="inline-flex items-center">Total Assets<SortIcon field="total_assets" /></span>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
+                          <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
+                        </TableHead>
                         <TableHead>Website</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
