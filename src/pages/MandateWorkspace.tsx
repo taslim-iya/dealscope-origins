@@ -161,17 +161,23 @@ export default function MandateWorkspace() {
 
       setMandate(mandateData as Mandate);
 
-      // Fetch companies for this mandate
-      const { data: companiesData, error: companiesError } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("mandate_id", id)
-        .order("created_at", { ascending: false })
-        .limit(1000000);
-
-      if (!companiesError && companiesData) {
-        setCompanies(companiesData as Company[]);
+      // Fetch companies for this mandate using paginated ranges
+      const pageSize = 1000;
+      let from = 0;
+      let allCompanies: Company[] = [];
+      while (true) {
+        const { data: batch, error: batchError } = await supabase
+          .from("companies")
+          .select("*")
+          .eq("mandate_id", id)
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (batchError) break;
+        allCompanies = allCompanies.concat((batch || []) as Company[]);
+        if (!batch || batch.length < pageSize) break;
+        from += pageSize;
       }
+      setCompanies(allCompanies);
 
       setLoading(false);
     };

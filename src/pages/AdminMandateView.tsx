@@ -193,17 +193,23 @@ export default function AdminMandateView() {
       profile: profileData || undefined,
     } as Mandate);
 
-    // Fetch companies for this mandate
-    const { data: companiesData, error: companiesError } = await supabase
-      .from("companies")
-      .select("*")
-      .eq("mandate_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1000000);
-
-    if (!companiesError && companiesData) {
-      setCompanies(companiesData as Company[]);
+    // Fetch companies using paginated ranges
+    const pageSize = 1000;
+    let from = 0;
+    let allCompanies: any[] = [];
+    while (true) {
+      const { data: batch, error: batchError } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("mandate_id", id)
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (batchError) break;
+      allCompanies = allCompanies.concat(batch || []);
+      if (!batch || batch.length < pageSize) break;
+      from += pageSize;
     }
+    setCompanies(allCompanies as Company[]);
 
     setLoading(false);
   };
