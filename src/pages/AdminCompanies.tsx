@@ -192,7 +192,8 @@ export default function AdminCompanies() {
       const { data: companiesData } = await supabase
         .from("companies")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(100000);
 
       if (companiesData && mandatesData) {
         // Map mandates to companies
