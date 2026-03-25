@@ -277,6 +277,42 @@ export default function AdminCorgiAI() {
     }
   };
 
+  const handleWebEnrich = async () => {
+    if (!mandateId) return;
+    setWebEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("web-enrich-companies", {
+        body: { mandate_id: mandateId },
+      });
+
+      if (error) {
+        const errorBody = typeof error === "object" && "context" in error
+          ? await (error as any).context?.json?.().catch(() => null)
+          : null;
+        const msg = errorBody?.error || error.message || "Web enrichment failed";
+        toast({ title: "Web enrichment failed", description: msg, variant: "destructive" });
+        return;
+      }
+
+      if (data?.error) {
+        toast({ title: "Web enrichment failed", description: data.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Web enrichment started", description: data?.message || "Searching the web to fill missing company data." });
+      // Poll for updates
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 15000);
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 30000);
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 60000);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Web enrichment failed";
+      toast({ title: "Web enrichment failed", description: msg, variant: "destructive" });
+    } finally {
+      setWebEnriching(false);
+    }
+  };
+
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
