@@ -437,6 +437,16 @@ export default function AdminCorgiAI() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleWebEnrich}
+                  disabled={webEnriching}
+                  className="gap-2"
+                >
+                  {webEnriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                  Enrich with Web Search
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleReanalyze}
                   disabled={enriching}
                   className="gap-2"
