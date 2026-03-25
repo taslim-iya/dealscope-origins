@@ -380,12 +380,20 @@ export default function AdminDashboard() {
                 Manage mandate requests and upload company data
               </p>
             </div>
-            <Link to="/admin/companies">
-              <Button variant="outline" className="gap-2">
-                <Building2 className="h-4 w-4" />
-                Company Database
-              </Button>
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link to="/admin/corgi-ai">
+                <Button variant="outline" className="gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Corgi AI
+                </Button>
+              </Link>
+              <Link to="/admin/companies">
+                <Button variant="outline" className="gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Company Database
+                </Button>
+              </Link>
+            </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3 mb-8">
