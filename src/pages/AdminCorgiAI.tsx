@@ -97,6 +97,7 @@ export default function AdminCorgiAI() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+  const [enriching, setEnriching] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
