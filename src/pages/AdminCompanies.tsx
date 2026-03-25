@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,6 +11,11 @@ import {
   Users,
   FileText,
   Trash2,
+  Upload,
+  Sparkles,
+  Globe,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +47,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { UploadProgressIndicator } from "@/components/admin/UploadProgressIndicator";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -120,6 +131,16 @@ export default function AdminCompanies() {
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+
+  // Upload & Enrich
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadMandateId, setUploadMandateId] = useState<string>("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadEstimate, setUploadEstimate] = useState(0);
+  const [aiEnriching, setAiEnriching] = useState(false);
+  const [webEnriching, setWebEnriching] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -280,6 +301,82 @@ export default function AdminCompanies() {
       setSelectedIds(new Set());
     }
     setBatchDeleting(false);
+  };
+
+  const handleCsvUpload = async () => {
+    if (!csvFile || !uploadMandateId) {
+      toast({ title: "Missing fields", description: "Please select a mandate and a CSV file.", variant: "destructive" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const csvContent = await csvFile.text();
+      // Estimate rows from line count (minus header)
+      const lineCount = csvContent.split("\n").filter((l) => l.trim()).length;
+      setUploadEstimate(Math.max(lineCount - 1, 1));
+
+      const { data, error } = await supabase.functions.invoke("process-company-upload", {
+        body: { mandate_id: uploadMandateId, csv_content: csvContent },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Upload started",
+        description: data?.message || "Companies are being processed.",
+      });
+    } catch (err: any) {
+      setUploading(false);
+      toast({ title: "Upload failed", description: err.message || "Something went wrong.", variant: "destructive" });
+    }
+  };
+
+  const handleUploadComplete = useCallback(() => {
+    setUploading(false);
+    setCsvFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    toast({ title: "Upload complete", description: "Companies have been added successfully." });
+    fetchData(0);
+  }, [toast]);
+
+  const handleAiEnrich = async () => {
+    if (!uploadMandateId) {
+      toast({ title: "Select a mandate", description: "Choose which mandate to enrich.", variant: "destructive" });
+      return;
+    }
+    setAiEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-enrich-companies", {
+        body: { mandate_id: uploadMandateId, fields_to_enrich: ["industry", "description_of_activities", "geography", "revenue_band"] },
+      });
+      if (error) throw error;
+      toast({ title: "AI Enrichment complete", description: data?.message || "Companies enriched successfully." });
+      fetchData(0);
+    } catch (err: any) {
+      toast({ title: "AI Enrichment failed", description: err.message || "Something went wrong.", variant: "destructive" });
+    } finally {
+      setAiEnriching(false);
+    }
+  };
+
+  const handleWebEnrich = async () => {
+    if (!uploadMandateId) {
+      toast({ title: "Select a mandate", description: "Choose which mandate to enrich.", variant: "destructive" });
+      return;
+    }
+    setWebEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("web-enrich-companies", {
+        body: { mandate_id: uploadMandateId },
+      });
+      if (error) throw error;
+      toast({ title: "Web Enrichment complete", description: data?.message || "Companies enriched with web data." });
+      fetchData(0);
+    } catch (err: any) {
+      toast({ title: "Web Enrichment failed", description: err.message || "Something went wrong.", variant: "destructive" });
+    } finally {
+      setWebEnriching(false);
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -582,6 +679,104 @@ export default function AdminCompanies() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Upload & Enrich */}
+          <Collapsible open={uploadOpen} onOpenChange={setUploadOpen} className="mb-6">
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Upload className="h-5 w-5" />
+                      Upload &amp; Enrich
+                    </CardTitle>
+                    {uploadOpen ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+                  </div>
+                  <CardDescription>
+                    Upload company CSVs and enrich data with AI or web search
+                  </CardDescription>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-6">
+                  {/* Mandate selector — shared by all actions */}
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">Select Mandate</label>
+                    <Select value={uploadMandateId} onValueChange={setUploadMandateId}>
+                      <SelectTrigger className="w-full max-w-md">
+                        <SelectValue placeholder="Choose a mandate…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mandates.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name} — {m.profile?.company_name || m.profile?.email || "Unknown"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* CSV Upload */}
+                  <div className="rounded-lg border border-border p-4 space-y-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Upload className="h-4 w-4" /> CSV Upload
+                    </h3>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
+                      <div className="flex-1 w-full">
+                        <label className="text-xs text-muted-foreground mb-1 block">Select a .csv file</label>
+                        <Input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".csv"
+                          onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                          className="w-full max-w-md"
+                        />
+                      </div>
+                      <Button onClick={handleCsvUpload} disabled={uploading || !csvFile || !uploadMandateId} className="gap-2">
+                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {uploading ? "Processing…" : "Upload CSV"}
+                      </Button>
+                    </div>
+                    {csvFile && (
+                      <p className="text-xs text-muted-foreground">
+                        Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
+                      </p>
+                    )}
+                    {uploading && uploadMandateId && (
+                      <UploadProgressIndicator
+                        mandateId={uploadMandateId}
+                        isProcessing={uploading}
+                        estimatedCompanies={uploadEstimate}
+                        onComplete={handleUploadComplete}
+                      />
+                    )}
+                  </div>
+
+                  {/* Enrich buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={handleAiEnrich}
+                      disabled={aiEnriching || !uploadMandateId}
+                      className="gap-2"
+                    >
+                      {aiEnriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {aiEnriching ? "Enriching…" : "AI Enrich"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleWebEnrich}
+                      disabled={webEnriching || !uploadMandateId}
+                      className="gap-2"
+                    >
+                      {webEnriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                      {webEnriching ? "Enriching…" : "Web Enrich"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Search and Filters */}
           <Card className="mb-6">
