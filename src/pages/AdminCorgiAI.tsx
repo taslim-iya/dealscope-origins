@@ -688,6 +688,25 @@ export default function AdminCorgiAI() {
                     </TableBody>
                   </Table>
                 </div>
+                {/* Pagination */}
+                {totalCount > PAGE_SIZE && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" disabled={page === 0} onClick={() => handlePageChange(page - 1)}>
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {page + 1} of {Math.ceil(totalCount / PAGE_SIZE)}
+                      </span>
+                      <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= totalCount} onClick={() => handlePageChange(page + 1)}>
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               )}
             </CardContent>
           </Card>
