@@ -39,27 +39,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data: profileData } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
 
-    if (profileData) {
-      setProfile(profileData);
-
-      if (profileData.domain_id) {
-        const { data: domainData } = await supabase
-          .from("domains")
-          .select("*")
-          .eq("id", profileData.domain_id)
-          .maybeSingle();
-
-        if (domainData) {
-          setDomain(domainData);
-        }
-      }
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      return;
     }
+
+    if (!profileData) {
+      setProfile(null);
+      setDomain(null);
+      return;
+    }
+
+    setProfile(profileData);
+
+    if (!profileData.domain_id) {
+      setDomain(null);
+      return;
+    }
+
+    const { data: domainData, error: domainError } = await supabase
+      .from("domains")
+      .select("*")
+      .eq("id", profileData.domain_id)
+      .maybeSingle();
+
+    if (domainError) {
+      console.error("Error fetching domain:", domainError);
+      return;
+    }
+
+    setDomain(domainData ?? null);
   };
 
   const refreshProfile = async () => {
@@ -69,37 +84,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (newSession?.user) {
-          // Use setTimeout to avoid potential deadlocks with Supabase client
-          setTimeout(() => {
-            fetchProfile(newSession.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-          setDomain(null);
-        }
+    let isMounted = true;
+    const failSafeTimeout = window.setTimeout(() => {
+      if (isMounted) {
         setLoading(false);
       }
-    );
+    }, 6000);
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      setUser(existingSession?.user ?? null);
+    // Set up auth state listener FIRST
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_, newSession) => {
+      if (!isMounted) return;
 
-      if (existingSession?.user) {
-        fetchProfile(existingSession.user.id);
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      if (newSession?.user) {
+        setTimeout(() => {
+          void fetchProfile(newSession.user.id);
+        }, 0);
+      } else {
+        setProfile(null);
+        setDomain(null);
       }
+
       setLoading(false);
+      window.clearTimeout(failSafeTimeout);
     });
 
+    const initSession = async () => {
+      try {
+        const {
+          data: { session: existingSession },
+        } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
+
+        setSession(existingSession);
+        setUser(existingSession?.user ?? null);
+
+        if (existingSession?.user) {
+          void fetchProfile(existingSession.user.id);
+        }
+      } catch (error) {
+        console.error("Error checking auth session:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          window.clearTimeout(failSafeTimeout);
+        }
+      }
+    };
+
+    void initSession();
+
     return () => {
+      isMounted = false;
+      window.clearTimeout(failSafeTimeout);
       subscription.unsubscribe();
     };
   }, []);
