@@ -129,6 +129,7 @@ export default function AdminMandateView() {
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, any> | null>(null);
   const [analyzingCsv, setAnalyzingCsv] = useState(false);
   const [lastCsvContent, setLastCsvContent] = useState<string | null>(null);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -570,7 +571,50 @@ export default function AdminMandateView() {
               {/* Companies List */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Companies ({companies.length})</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Companies ({companies.length})</CardTitle>
+                    {companies.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          setCleaningUp(true);
+                          try {
+                            const { data, error } = await supabase.functions.invoke("cleanup-companies", {
+                              body: { mandate_id: id },
+                            });
+                            if (error) throw error;
+                            toast({
+                              title: "Cleanup started",
+                              description: data?.message || "AI is scanning for non-company entries. Refresh in a moment to see results.",
+                            });
+                            // Poll for changes after a delay
+                            setTimeout(() => {
+                              fetchData();
+                              setCleaningUp(false);
+                            }, 15000);
+                          } catch (e) {
+                            console.error("Cleanup error:", e);
+                            toast({
+                              title: "Cleanup failed",
+                              description: "Could not start cleanup. Try again.",
+                              variant: "destructive",
+                            });
+                            setCleaningUp(false);
+                          }
+                        }}
+                        disabled={cleaningUp}
+                        className="gap-1.5"
+                      >
+                        {cleaningUp ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        {cleaningUp ? "Cleaning..." : "AI Clean Up"}
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {companies.length === 0 ? (
