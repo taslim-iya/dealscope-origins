@@ -247,15 +247,26 @@ export default function AdminCorgiAI() {
       const { data, error } = await supabase.functions.invoke("ai-enrich-companies", {
         body: { mandate_id: mandateId },
       });
-      if (error) throw error;
-      toast({ title: "Re-analysis started", description: data.message || "AI is enriching company data from the stored file." });
-      // Poll for updates after a delay
-      setTimeout(() => {
-        if (mandateId) fetchCompanies(mandateId);
-      }, 10000);
-      setTimeout(() => {
-        if (mandateId) fetchCompanies(mandateId);
-      }, 30000);
+
+      if (error) {
+        // supabase.functions.invoke wraps non-2xx as FunctionsHttpError
+        const errorBody = typeof error === "object" && "context" in error
+          ? await (error as any).context?.json?.().catch(() => null)
+          : null;
+        const msg = errorBody?.error || error.message || "Re-analysis failed";
+        toast({ title: "Re-analysis failed", description: msg, variant: "destructive" });
+        return;
+      }
+
+      if (data?.error) {
+        toast({ title: "Re-analysis failed", description: data.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Re-analysis started", description: data?.message || "AI is enriching company data from the stored file." });
+      // Poll for updates
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 10000);
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 30000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Re-analysis failed";
       toast({ title: "Re-analysis failed", description: msg, variant: "destructive" });
