@@ -555,6 +555,10 @@ export default function AdminCorgiAI() {
                     className="max-w-md"
                   />
                   {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="gap-2 shrink-0">
+                    <Download className="h-4 w-4" />
+                    Download Template
+                  </Button>
                 </div>
                 {uploadResult && !bgProcessing && (
                   <div className={`flex items-center gap-2 p-3 rounded-lg ${uploadResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
