@@ -135,11 +135,14 @@ function parseCSVWithMapping(
   const headers = parseCSVLine(lines[0]);
   const companies: CompanyRow[] = [];
 
-  const parseNumeric = (value: string, multiplier: number): number | undefined => {
+    const parseNumeric = (value: string, multiplier: number): number | undefined => {
     if (!value) return undefined;
     const cleaned = value.replace(/[£$,\s%]/g, "");
     const num = parseFloat(cleaned);
-    return isNaN(num) ? undefined : num * multiplier;
+    if (isNaN(num)) return undefined;
+    // All financial values in source data are stated in thousands — multiply by 1000
+    const adjusted = num * multiplier * 1000;
+    return adjusted;
   };
 
   for (let i = 1; i < lines.length; i++) {
@@ -418,7 +421,17 @@ async function processInBackground(
       return;
     }
 
-    const totalInserted = await insertInBatches(supabase, mandateId, validatedCompanies);
+    // Deduplicate by company_name (keep first occurrence)
+    const seen = new Set<string>();
+    const deduplicated = validatedCompanies.filter((c) => {
+      const key = (c.company_name as string).trim().toUpperCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    console.log(`Background: ${deduplicated.length} unique companies after deduplication (${validatedCompanies.length - deduplicated.length} duplicates removed)`);
+
+    const totalInserted = await insertInBatches(supabase, mandateId, deduplicated);
     console.log(`Background: inserted ${totalInserted} companies total`);
 
     // Update mandate
