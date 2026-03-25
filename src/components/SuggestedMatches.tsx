@@ -96,7 +96,7 @@ export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedM
         .from("companies")
         .select("*")
         .neq("mandate_id", mandate.id)
-        .limit(100000);
+        .limit(1000000);
 
       if (error) {
         console.error("Error fetching companies:", error);
