@@ -234,6 +234,30 @@ export default function AdminCorgiAI() {
     setBatchDeleting(false);
   };
 
+  const handleReanalyze = async () => {
+    if (!mandateId) return;
+    setEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-enrich-companies", {
+        body: { mandate_id: mandateId },
+      });
+      if (error) throw error;
+      toast({ title: "Re-analysis started", description: data.message || "AI is enriching company data from the stored file." });
+      // Poll for updates after a delay
+      setTimeout(() => {
+        if (mandateId) fetchCompanies(mandateId);
+      }, 10000);
+      setTimeout(() => {
+        if (mandateId) fetchCompanies(mandateId);
+      }, 30000);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Re-analysis failed";
+      toast({ title: "Re-analysis failed", description: msg, variant: "destructive" });
+    } finally {
+      setEnriching(false);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
