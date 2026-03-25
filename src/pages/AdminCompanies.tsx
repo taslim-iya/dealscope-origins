@@ -188,13 +188,29 @@ export default function AdminCompanies() {
         setMandates(mandatesWithProfiles);
       }
 
-      // Fetch all companies
-      const { data: companiesData } = await supabase
-        .from("companies")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1000000);
+      // Fetch all companies using paginated ranges
+      const pageSize = 1000;
+      let from = 0;
+      let allCompanies: any[] = [];
 
+      while (true) {
+        const { data: batch, error } = await supabase
+          .from("companies")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+
+        if (error) {
+          console.error("Failed to fetch companies:", error);
+          break;
+        }
+
+        allCompanies = allCompanies.concat(batch || []);
+        if (!batch || batch.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const companiesData = allCompanies;
       if (companiesData && mandatesData) {
         // Map mandates to companies
         const mandateMap = new Map<string, Mandate>();
