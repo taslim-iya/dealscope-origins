@@ -55,19 +55,27 @@ The target database fields are:
 - profit_before_tax: Profit, PBT, EBITDA, operating profit, pre-tax profit (numeric)
 - net_assets: Net assets, shareholders funds, equity, NAV, net asset value (numeric)
 - total_assets: Total assets, gross assets (numeric)
+- number_of_employees: Number of employees, headcount, staff count, FTE, workforce size (numeric, integer)
 - revenue_band: Revenue range/band (text)
 - asset_band: Asset range/band (text)
 - status: Company status
 
-IMPORTANT: Map as many columns as possible. Be GENEROUS with mappings — it is far better to map a column that might be relevant than to miss a column that has useful data. Look at both the header names AND the sample data to determine mappings.
+IMPORTANT RULES:
+1. Map as many columns as possible. Be GENEROUS with mappings — it is far better to map a column that might be relevant than to miss a column that has useful data.
+2. Look at both the header names AND the sample data to determine mappings.
+3. ALL numeric/financial values in the source data are stated in THOUSANDS. Set multiplier to 1 (the system will multiply by 1000 automatically). Only set a different multiplier if the header explicitly says millions (multiplier=1000) or the values are clearly in full units (multiplier=0.001).
+4. number_of_employees should NOT be multiplied — it is a raw count. Set is_numeric=true but the system handles it separately.
 
 For example:
-- "Turnover (£000s)" -> revenue with multiplier 1000
+- "Turnover (£000s)" -> revenue, multiplier=1
+- "Revenue th GBP" -> revenue, multiplier=1
 - "SIC 2007 Description" -> industry
 - "Trade description" -> description_of_activities
 - "Postcode" -> geography
 - Any column with URLs -> website
 - "Registered office address" -> address
+- "Number of employees" -> number_of_employees
+- "Employees" -> number_of_employees
 
 Map EVERY column that could reasonably correspond to a database field. Use "low" confidence only if truly uncertain, but still include it.`,
           },
