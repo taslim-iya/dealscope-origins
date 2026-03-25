@@ -105,6 +105,9 @@ export default function AdminCorgiAI() {
   const [webEnriching, setWebEnriching] = useState(false);
   const [sortField, setSortField] = useState<keyof Company | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -162,32 +165,29 @@ export default function AdminCorgiAI() {
     return created.id;
   };
 
-  const fetchCompanies = async (mId: string) => {
-    const pageSize = 1000;
-    let from = 0;
-    let allRows: Company[] = [];
+  const fetchCount = async (mId: string) => {
+    const { count } = await supabase
+      .from("companies")
+      .select("*", { count: "exact", head: true })
+      .eq("mandate_id", mId);
+    setTotalCount(count || 0);
+  };
 
-    while (true) {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("mandate_id", mId)
-        .order("created_at", { ascending: false })
-        .range(from, from + pageSize - 1);
+  const fetchCompanies = async (mId: string, pageNum?: number) => {
+    const p = pageNum ?? page;
+    const from = p * PAGE_SIZE;
+    const { data, error } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("mandate_id", mId)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
 
-      if (error) {
-        console.error("Failed to fetch companies:", error);
-        break;
-      }
-
-      const batch = (data || []) as Company[];
-      allRows = allRows.concat(batch);
-
-      if (batch.length < pageSize) break;
-      from += pageSize;
+    if (error) {
+      console.error("Failed to fetch companies:", error);
+    } else {
+      setCompanies((data || []) as Company[]);
     }
-
-    setCompanies(allRows);
     setLoading(false);
   };
 
@@ -197,13 +197,22 @@ export default function AdminCorgiAI() {
       const mId = await getOrCreateMandate();
       if (mId) {
         setMandateId(mId);
-        await fetchCompanies(mId);
+        await Promise.all([fetchCount(mId), fetchCompanies(mId, 0)]);
       } else {
         setLoading(false);
       }
     };
     if (isAdmin) init();
   }, [isAdmin]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setSelectedIds(new Set());
+    if (mandateId) {
+      setLoading(true);
+      fetchCompanies(mandateId, newPage);
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -284,8 +293,8 @@ export default function AdminCorgiAI() {
 
       toast({ title: "Re-analysis started", description: data?.message || "AI is enriching company data from the stored file." });
       // Poll for updates
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 10000);
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 30000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 10000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 30000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Re-analysis failed";
       toast({ title: "Re-analysis failed", description: msg, variant: "destructive" });
@@ -318,9 +327,9 @@ export default function AdminCorgiAI() {
 
       toast({ title: "Web enrichment started", description: data?.message || "Searching the web to fill missing company data." });
       // Poll for updates
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 15000);
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 30000);
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 60000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 15000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 30000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 60000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Web enrichment failed";
       toast({ title: "Web enrichment failed", description: msg, variant: "destructive" });
@@ -446,7 +455,7 @@ export default function AdminCorgiAI() {
                 Corgi AI
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Upload and manage companies for Corgi AI — {companies.length} companies in database
+                Upload and manage companies for Corgi AI — {totalCount.toLocaleString()} companies in database
               </p>
             </div>
             {companies.length > 0 && (
@@ -514,6 +523,7 @@ export default function AdminCorgiAI() {
                     estimatedCompanies={estimatedCompanies}
                     onComplete={() => {
                       setBgProcessing(false);
+                      fetchCount(mandateId);
                       fetchCompanies(mandateId);
                       // Auto-trigger web enrichment after upload completes
                       setTimeout(() => handleWebEnrich(), 2000);
@@ -575,109 +585,129 @@ export default function AdminCorgiAI() {
                   {companies.length === 0 ? "No companies uploaded yet. Upload a CSV or Excel file to get started." : "No companies match your search."}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[1400px]">
-                    <TableHeader>
-                      <TableRow>
-                         <TableHead className="w-[40px]">
-                          <Checkbox
-                            checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
-                            onCheckedChange={toggleSelectAll}
-                          />
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("company_name")}>
-                          <span className="inline-flex items-center">Company Name<SortIcon field="company_name" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("industry")}>
-                          <span className="inline-flex items-center">Industry<SortIcon field="industry" /></span>
-                        </TableHead>
-                        <TableHead className="max-w-[200px] cursor-pointer select-none" onClick={() => toggleSort("description_of_activities")}>
-                          <span className="inline-flex items-center">Description<SortIcon field="description_of_activities" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("geography")}>
-                          <span className="inline-flex items-center">Country<SortIcon field="geography" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("revenue")}>
-                          <span className="inline-flex items-center">Revenue<SortIcon field="revenue" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("profit_before_tax")}>
-                          <span className="inline-flex items-center">PBT<SortIcon field="profit_before_tax" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("total_assets")}>
-                          <span className="inline-flex items-center">Total Assets<SortIcon field="total_assets" /></span>
-                        </TableHead>
-                        <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
-                          <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
-                        </TableHead>
-                        <TableHead>Website</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCompanies.map((company) => (
-                        <TableRow key={company.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/company/${company.id}`)}>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
+                <>
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[1400px]">
+                      <TableHeader>
+                        <TableRow>
+                           <TableHead className="w-[40px]">
                             <Checkbox
-                              checked={selectedIds.has(company.id)}
-                              onCheckedChange={() => toggleSelect(company.id)}
+                              checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+                              onCheckedChange={toggleSelectAll}
                             />
-                          </TableCell>
-                          <TableCell className="font-medium whitespace-nowrap">{company.company_name}</TableCell>
-                          <TableCell className="text-muted-foreground">{company.industry || "—"}</TableCell>
-                          <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={company.description_of_activities || ""}>
-                            {company.description_of_activities || "—"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground whitespace-nowrap">{company.geography || "—"}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.revenue)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            {company.website ? (
-                              <a
-                                href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary hover:underline text-sm inline-flex items-center gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                Link
-                              </a>
-                            ) : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete company?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently remove "{company.company_name}" from the database.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteCompany(company.id)}>
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </TableCell>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("company_name")}>
+                            <span className="inline-flex items-center">Company Name<SortIcon field="company_name" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("industry")}>
+                            <span className="inline-flex items-center">Industry<SortIcon field="industry" /></span>
+                          </TableHead>
+                          <TableHead className="max-w-[200px] cursor-pointer select-none" onClick={() => toggleSort("description_of_activities")}>
+                            <span className="inline-flex items-center">Description<SortIcon field="description_of_activities" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("geography")}>
+                            <span className="inline-flex items-center">Country<SortIcon field="geography" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("revenue")}>
+                            <span className="inline-flex items-center">Revenue<SortIcon field="revenue" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("profit_before_tax")}>
+                            <span className="inline-flex items-center">PBT<SortIcon field="profit_before_tax" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("total_assets")}>
+                            <span className="inline-flex items-center">Total Assets<SortIcon field="total_assets" /></span>
+                          </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
+                            <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
+                          </TableHead>
+                          <TableHead>Website</TableHead>
+                          <TableHead></TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCompanies.map((company) => (
+                          <TableRow key={company.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/company/${company.id}`)}>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedIds.has(company.id)}
+                                onCheckedChange={() => toggleSelect(company.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium whitespace-nowrap">{company.company_name}</TableCell>
+                            <TableCell className="text-muted-foreground">{company.industry || "—"}</TableCell>
+                            <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={company.description_of_activities || ""}>
+                              {company.description_of_activities || "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground whitespace-nowrap">{company.geography || "—"}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.revenue)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              {company.website ? (
+                                <a
+                                  href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline text-sm inline-flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Link
+                                </a>
+                              ) : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete company?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently remove "{company.company_name}" from the database.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteCompany(company.id)}>
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {totalCount > PAGE_SIZE && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <p className="text-sm text-muted-foreground">
+                        Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => handlePageChange(page - 1)}>
+                          Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          Page {page + 1} of {Math.ceil(totalCount / PAGE_SIZE)}
+                        </span>
+                        <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= totalCount} onClick={() => handlePageChange(page + 1)}>
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
