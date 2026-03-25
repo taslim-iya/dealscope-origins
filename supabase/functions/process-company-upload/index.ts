@@ -175,6 +175,117 @@ function parseCSVWithMapping(
 }
 
 const BATCH_SIZE = 500;
+const VALIDATION_BATCH_SIZE = 100;
+
+async function validateCompanyNames(companies: CompanyRow[]): Promise<CompanyRow[]> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.warn("LOVABLE_API_KEY not set, skipping AI validation");
+    return companies;
+  }
+
+  const validCompanies: CompanyRow[] = [];
+
+  for (let i = 0; i < companies.length; i += VALIDATION_BATCH_SIZE) {
+    const batch = companies.slice(i, i + VALIDATION_BATCH_SIZE);
+    const names = batch.map((c, idx) => `${idx}: ${c.company_name}`).join("\n");
+
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            {
+              role: "system",
+              content: `You are a data quality validator. Given a numbered list of potential company names extracted from a CSV, identify which ones are REAL company or business names.
+
+REJECT entries that are:
+- Cell references or numbers (e.g. "A1", "123", "Row 5")
+- Column headers or labels (e.g. "Company Name", "Revenue", "Total")
+- Summary rows (e.g. "Grand Total", "Sum", "Average", "Count")
+- Blank or meaningless strings (e.g. "-", "N/A", "TBD", "...", "null")
+- Pure numbers or codes that aren't company identifiers
+- Single characters or very short non-name strings
+- Generic descriptions that aren't company names (e.g. "Various", "Other", "Unknown")
+
+ACCEPT entries that look like real business/company names, even if abbreviated or informal. When in doubt, ACCEPT — it's better to keep a questionable company than delete a real one.`,
+            },
+            {
+              role: "user",
+              content: `Which of these are real company names? Return ONLY the index numbers of valid companies.\n\n${names}`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "validate_companies",
+                description: "Return the indices of entries that are valid company names",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    valid_indices: {
+                      type: "array",
+                      items: { type: "integer" },
+                      description: "Array of 0-based indices of entries that are real company names",
+                    },
+                    rejected_examples: {
+                      type: "array",
+                      items: { type: "string" },
+                      description: "A few examples of rejected entries for logging",
+                    },
+                  },
+                  required: ["valid_indices"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "validate_companies" } },
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(`AI validation failed for batch ${i / VALIDATION_BATCH_SIZE + 1}, keeping all entries`);
+        validCompanies.push(...batch);
+        continue;
+      }
+
+      const aiResult = await response.json();
+      const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+
+      if (!toolCall) {
+        console.warn("AI validation returned no tool call, keeping all entries");
+        validCompanies.push(...batch);
+        continue;
+      }
+
+      const { valid_indices, rejected_examples } = JSON.parse(toolCall.function.arguments);
+
+      if (rejected_examples?.length > 0) {
+        console.log(`Rejected examples: ${rejected_examples.join(", ")}`);
+      }
+
+      const validSet = new Set(valid_indices as number[]);
+      const validated = batch.filter((_, idx) => validSet.has(idx));
+      validCompanies.push(...validated);
+
+      const rejected = batch.length - validated.length;
+      console.log(`Validation batch ${Math.floor(i / VALIDATION_BATCH_SIZE) + 1}: kept ${validated.length}, rejected ${rejected} non-company entries`);
+    } catch (e) {
+      console.warn("AI validation error, keeping batch:", e);
+      validCompanies.push(...batch);
+    }
+  }
+
+  console.log(`AI validation complete: ${validCompanies.length} valid companies out of ${companies.length} total entries`);
+  return validCompanies;
+}
 
 async function insertInBatches(
   supabase: ReturnType<typeof createClient>,
@@ -291,7 +402,16 @@ async function processInBackground(
       return;
     }
 
-    const totalInserted = await insertInBatches(supabase, mandateId, companies);
+    // AI validation: filter out non-company entries
+    const validatedCompanies = await validateCompanyNames(companies);
+    console.log(`Background: ${validatedCompanies.length} companies passed AI validation (${companies.length - validatedCompanies.length} rejected)`);
+
+    if (validatedCompanies.length === 0) {
+      console.error("Background: No valid companies found after AI validation");
+      return;
+    }
+
+    const totalInserted = await insertInBatches(supabase, mandateId, validatedCompanies);
     console.log(`Background: inserted ${totalInserted} companies total`);
 
     // Update mandate
