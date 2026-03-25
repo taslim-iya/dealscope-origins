@@ -65,6 +65,7 @@ interface Company {
   profit_before_tax: number | null;
   net_assets: number | null;
   total_assets: number | null;
+  number_of_employees: number | null;
   status: string | null;
   website: string | null;
   description_of_activities: string | null;
