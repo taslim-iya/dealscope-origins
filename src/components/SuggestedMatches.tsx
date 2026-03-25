@@ -91,20 +91,25 @@ export default function SuggestedMatches({ mandate, onCompanyAdded }: SuggestedM
     const findMatches = async () => {
       setLoading(true);
 
-      // Fetch all companies NOT already in this mandate
-      const { data: companiesData, error } = await supabase
-        .from("companies")
-        .select("*")
-        .neq("mandate_id", mandate.id)
-        .limit(1000000);
-
-      if (error) {
-        console.error("Error fetching companies:", error);
-        setLoading(false);
-        return;
+      // Fetch all companies NOT in this mandate using paginated ranges
+      const pageSize = 1000;
+      let from = 0;
+      let allCompanies: any[] = [];
+      while (true) {
+        const { data: batch, error: batchError } = await supabase
+          .from("companies")
+          .select("*")
+          .neq("mandate_id", mandate.id)
+          .range(from, from + pageSize - 1);
+        if (batchError) break;
+        allCompanies = allCompanies.concat(batch || []);
+        if (!batch || batch.length < pageSize) break;
+        from += pageSize;
       }
 
-      if (!companiesData || companiesData.length === 0) {
+      const companiesData = allCompanies;
+
+      if (companiesData.length === 0) {
         setAllMatches([]);
         setLoading(false);
         return;
