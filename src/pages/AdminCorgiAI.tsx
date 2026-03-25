@@ -215,6 +215,30 @@ export default function AdminCorgiAI() {
     }
   };
 
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "Company Name",
+      "Industry",
+      "Description of Activities",
+      "Geography",
+      "Revenue",
+      "Profit Before Tax",
+      "Total Assets",
+      "Net Assets",
+      "Number of Employees",
+      "Website",
+      "Companies House Number",
+      "Address",
+    ];
+    const csvContent = headers.map((h) => `"${h}"`).join(",") + "\n";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Company_Upload_Template.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     console.log("[Upload] file:", file?.name, "mandateId:", mandateId);
