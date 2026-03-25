@@ -695,6 +695,7 @@ export default function AdminCorgiAI() {
                             <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{company.number_of_employees?.toLocaleString() || "—"}</TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               {company.website ? (
                                 <a
