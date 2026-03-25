@@ -6,6 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const ENRICH_BATCH_SIZE = 25;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -34,7 +36,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check admin
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { mandate_id, fields_to_enrich } = await req.json();
+    const { mandate_id } = await req.json();
 
     if (!mandate_id) {
       return new Response(JSON.stringify({ error: "mandate_id is required" }), {
@@ -58,60 +59,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use service role for the actual work
     const serviceSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Check if there's a stored CSV in mandate-uploads
-    const { data: files, error: listError } = await serviceSupabase.storage
-      .from("mandate-uploads")
-      .list(mandate_id, { limit: 100 });
+    // Count companies needing enrichment
+    const { count } = await serviceSupabase
+      .from("companies")
+      .select("id", { count: "exact", head: true })
+      .eq("mandate_id", mandate_id)
+      .or("industry.is.null,description_of_activities.is.null,geography.is.null");
 
-    console.log("Storage list result:", JSON.stringify({ files: files?.map(f => f.name), listError }));
-
-    // Filter out placeholder files
-    const csvFiles = (files || []).filter(f => 
-      f.name && !f.name.startsWith(".") && (f.name.endsWith(".csv") || f.name.endsWith(".xlsx") || f.name.endsWith(".xls"))
-    );
-
-    if (csvFiles.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "No uploaded files found for this mandate. Please re-upload a CSV file — previous uploads before AI mapping was enabled are not stored." }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get the most recent file
-    const latestFile = csvFiles.sort((a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0];
-    console.log("Using file:", latestFile.name);
-
-    const { data: fileData, error: downloadError } = await serviceSupabase.storage
-      .from("mandate-uploads")
-      .download(`${mandate_id}/${latestFile.name}`);
-
-    if (downloadError || !fileData) {
-      return new Response(
-        JSON.stringify({ error: "Failed to download stored file" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const csvContent = await fileData.text();
-
-    // Kick off background enrichment
     EdgeRuntime.waitUntil(
-      enrichInBackground(serviceSupabase, mandate_id, csvContent, fields_to_enrich)
+      enrichWithAIKnowledge(serviceSupabase, mandate_id)
     );
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Re-analyzing ${latestFile.name} to enrich company data. Updates will appear shortly.`,
-        file_name: latestFile.name,
+        message: `Enriching ~${count || 0} companies using AI knowledge. Updates will appear as they complete.`,
+        companies_to_enrich: count || 0,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -124,192 +92,190 @@ Deno.serve(async (req) => {
   }
 });
 
-function parseCSVLine(line: string): string[] {
-  const fields: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        current += char;
-      }
-    } else {
-      if (char === '"') {
-        inQuotes = true;
-      } else if (char === ",") {
-        fields.push(current.trim());
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-  }
-  fields.push(current.trim());
-  return fields;
-}
-
-async function enrichInBackground(
+async function enrichWithAIKnowledge(
   supabase: ReturnType<typeof createClient>,
-  mandateId: string,
-  csvContent: string,
-  fieldsToEnrich?: string[]
+  mandateId: string
 ) {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.error("LOVABLE_API_KEY not configured");
+    return;
+  }
+
   try {
-    const lines = csvContent.trim().split(/\r?\n/);
-    if (lines.length < 2) {
-      console.error("CSV has no data rows");
-      return;
-    }
+    // Fetch all companies missing key fields
+    let allCompanies: { id: string; company_name: string; industry: string | null; geography: string | null; description_of_activities: string | null; revenue: number | null; website: string | null }[] = [];
+    let offset = 0;
+    const PAGE = 1000;
 
-    const headers = parseCSVLine(lines[0]);
+    while (true) {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, company_name, industry, geography, description_of_activities, revenue, website")
+        .eq("mandate_id", mandateId)
+        .or("industry.is.null,description_of_activities.is.null,geography.is.null")
+        .range(offset, offset + PAGE - 1);
 
-    // Build sample rows for AI mapping
-    const sampleRows: Record<string, string>[] = [];
-    for (let i = 1; i < Math.min(6, lines.length); i++) {
-      const values = parseCSVLine(lines[i]);
-      const row: Record<string, string> = {};
-      headers.forEach((h, idx) => {
-        row[h] = values[idx] || "";
-      });
-      sampleRows.push(row);
-    }
-
-    // Call AI mapping
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
-      return;
-    }
-
-    const mapResponse = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-map-columns`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-        },
-        body: JSON.stringify({ headers, sample_rows: sampleRows }),
-      }
-    );
-
-    if (!mapResponse.ok) {
-      console.error("AI mapping failed:", await mapResponse.text());
-      return;
-    }
-
-    const { mappings } = await mapResponse.json();
-    console.log("AI mappings:", JSON.stringify(mappings));
-
-    // Build header->field map
-    const headerToField: Record<string, { db_field: string; is_numeric: boolean; multiplier: number }> = {};
-    for (const m of mappings) {
-      // Accept ALL confidence levels to maximize data capture
-      headerToField[m.csv_header] = {
-        db_field: m.db_field,
-        is_numeric: m.is_numeric || false,
-        multiplier: m.multiplier || 1,
-      };
-    }
-
-    // Get existing companies for this mandate (to match by name)
-    const { data: existingCompanies } = await supabase
-      .from("companies")
-      .select("id, company_name")
-      .eq("mandate_id", mandateId);
-
-    const companyMap = new Map<string, string>();
-    if (existingCompanies) {
-      for (const c of existingCompanies) {
-        companyMap.set(c.company_name.toLowerCase().trim(), c.id);
-      }
-    }
-
-    // Find the company_name header
-    let companyNameHeader: string | null = null;
-    for (const [csvH, info] of Object.entries(headerToField)) {
-      if (info.db_field === "company_name") {
-        companyNameHeader = csvH;
+      if (error) {
+        console.error("Fetch error:", error.message);
         break;
       }
+      if (!data || data.length === 0) break;
+      allCompanies = allCompanies.concat(data);
+      if (data.length < PAGE) break;
+      offset += PAGE;
     }
 
-    if (!companyNameHeader) {
-      console.error("Could not identify company_name column");
-      return;
-    }
+    console.log(`Found ${allCompanies.length} companies needing enrichment`);
+    if (allCompanies.length === 0) return;
 
-    const parseNumeric = (value: string, multiplier: number): number | undefined => {
-      if (!value) return undefined;
-      const cleaned = value.replace(/[£$,\s%]/g, "");
-      const num = parseFloat(cleaned);
-      if (isNaN(num)) return undefined;
-      return num * multiplier;
-    };
+    let enriched = 0;
+    let failed = 0;
 
-    // Process rows and update existing companies
-    let updated = 0;
-    const BATCH = 50;
-    const updates: { id: string; data: Record<string, unknown> }[] = [];
+    for (let i = 0; i < allCompanies.length; i += ENRICH_BATCH_SIZE) {
+      const batch = allCompanies.slice(i, i + ENRICH_BATCH_SIZE);
 
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
-      if (values.length === 0 || (values.length === 1 && !values[0])) continue;
+      const companySummaries = batch.map((c, idx) => {
+        const parts = [`${idx}: "${c.company_name}"`];
+        if (c.website) parts.push(`website: ${c.website}`);
+        if (c.industry) parts.push(`industry: ${c.industry}`);
+        if (c.geography) parts.push(`location: ${c.geography}`);
+        return parts.join(" | ");
+      }).join("\n");
 
-      const row: Record<string, string> = {};
-      headers.forEach((h, idx) => {
-        row[h] = values[idx] || "";
-      });
+      try {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "system",
+                content: `You are a business research assistant. Given a list of company names (and any known info), provide the most likely industry, a brief description of activities, and geographic location for each.
 
-      const companyName = row[companyNameHeader];
-      if (!companyName) continue;
+Use your knowledge of real companies. If you recognise the company, provide accurate information. If you don't recognise it, make a reasonable inference from the company name (e.g. "Smith's Bakery" is likely a bakery in the food industry).
 
-      const companyId = companyMap.get(companyName.toLowerCase().trim());
-      if (!companyId) continue; // Company not in database
+For revenue: only provide if you have reliable knowledge of the company's approximate annual revenue in GBP or USD. Use the raw number (e.g. 5000000 for £5M). Set to null if unknown — do NOT guess revenue.
 
-      // Build update object
-      const updateData: Record<string, unknown> = {};
-      for (const [csvH, info] of Object.entries(headerToField)) {
-        if (info.db_field === "company_name") continue; // Don't update name
-        if (fieldsToEnrich && !fieldsToEnrich.includes(info.db_field)) continue;
+IMPORTANT: Be accurate. It's better to return null for a field than to guess incorrectly.`,
+              },
+              {
+                role: "user",
+                content: `Enrich these companies with missing details:\n\n${companySummaries}`,
+              },
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "enrich_companies",
+                  description: "Return enriched company data",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      companies: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            index: { type: "integer", description: "0-based index from input" },
+                            industry: { type: "string", description: "Industry sector (e.g. Insurance, Technology, Healthcare). Null if truly unknown.", nullable: true },
+                            description_of_activities: { type: "string", description: "Brief 1-2 sentence description of what the company does. Null if truly unknown.", nullable: true },
+                            geography: { type: "string", description: "Location/region (e.g. 'California, USA' or 'London, UK'). Null if unknown.", nullable: true },
+                            revenue: { type: "number", description: "Approximate annual revenue as raw number. Null if unknown — do NOT guess.", nullable: true },
+                          },
+                          required: ["index"],
+                          additionalProperties: false,
+                        },
+                      },
+                    },
+                    required: ["companies"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            ],
+            tool_choice: { type: "function", function: { name: "enrich_companies" } },
+            max_tokens: 8192,
+          }),
+        });
 
-        const rawValue = row[csvH];
-        if (!rawValue) continue;
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn(`AI enrichment failed for batch ${Math.floor(i / ENRICH_BATCH_SIZE) + 1}: ${response.status} ${errText}`);
+          failed += batch.length;
 
-        if (info.is_numeric) {
-          const num = parseNumeric(rawValue, info.multiplier);
-          if (num !== undefined) updateData[info.db_field] = num;
-        } else {
-          updateData[info.db_field] = rawValue;
+          if (response.status === 429) {
+            console.log("Rate limited, waiting 10s...");
+            await new Promise(r => setTimeout(r, 10000));
+          }
+          continue;
         }
-      }
 
-      if (Object.keys(updateData).length > 0) {
-        updates.push({ id: companyId, data: updateData });
+        const aiResult = await response.json();
+        const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+
+        if (!toolCall) {
+          console.warn("No tool call in AI response, skipping batch");
+          failed += batch.length;
+          continue;
+        }
+
+        const { companies: enrichedData } = JSON.parse(toolCall.function.arguments);
+
+        // Apply updates
+        const updatePromises = (enrichedData || []).map(async (enrichment: { index: number; industry?: string | null; description_of_activities?: string | null; geography?: string | null; revenue?: number | null }) => {
+          const company = batch[enrichment.index];
+          if (!company) return;
+
+          const updateData: Record<string, unknown> = {};
+
+          // Only update fields that are currently null and AI provided a value
+          if (!company.industry && enrichment.industry) {
+            updateData.industry = enrichment.industry;
+          }
+          if (!company.description_of_activities && enrichment.description_of_activities) {
+            updateData.description_of_activities = enrichment.description_of_activities;
+          }
+          if (!company.geography && enrichment.geography) {
+            updateData.geography = enrichment.geography;
+          }
+          if (!company.revenue && enrichment.revenue && enrichment.revenue > 1000) {
+            // Basic sanity check: revenue should be > 1000 to avoid year-like values
+            updateData.revenue = enrichment.revenue;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            const { error } = await supabase
+              .from("companies")
+              .update(updateData)
+              .eq("id", company.id);
+
+            if (error) {
+              console.warn(`Failed to update ${company.company_name}: ${error.message}`);
+            }
+          }
+        });
+
+        await Promise.all(updatePromises);
+        enriched += batch.length;
+        console.log(`Enriched ${enriched} / ${allCompanies.length} companies`);
+
+        // Small delay to avoid rate limits
+        if (i + ENRICH_BATCH_SIZE < allCompanies.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      } catch (e) {
+        console.warn(`Batch error:`, e);
+        failed += batch.length;
       }
     }
 
-    // Execute updates in batches
-    for (let i = 0; i < updates.length; i += BATCH) {
-      const batch = updates.slice(i, i + BATCH);
-      await Promise.all(
-        batch.map(({ id, data }) =>
-          supabase.from("companies").update(data).eq("id", id)
-        )
-      );
-      updated += batch.length;
-      console.log(`Enriched ${updated} / ${updates.length} companies`);
-    }
-
-    console.log(`Enrichment complete. Updated ${updated} companies.`);
+    console.log(`AI enrichment complete: ${enriched} enriched, ${failed} failed out of ${allCompanies.length}`);
   } catch (error) {
     console.error("Enrichment error:", error);
   }
