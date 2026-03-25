@@ -57,6 +57,7 @@ const App = () => (
             <Route path="/admin/listings" element={<AdminListings />} />
             <Route path="/admin/mandate/:id" element={<AdminMandateView />} />
             <Route path="/admin/submissions" element={<AdminSubmissions />} />
+            <Route path="/admin/corgi-ai" element={<AdminCorgiAI />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
