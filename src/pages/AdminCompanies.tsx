@@ -21,14 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ResizableDataTable, ColumnDef } from "@/components/admin/ResizableDataTable";
 import {
   Select,
   SelectContent,
