@@ -364,7 +364,36 @@ export default function AdminCorgiAI() {
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <CardTitle>Companies ({filteredCompanies.length})</CardTitle>
+                <div className="flex items-center gap-4">
+                  <CardTitle>Companies ({filteredCompanies.length})</CardTitle>
+                  {selectedIds.size > 0 && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" disabled={batchDeleting} className="gap-2">
+                          {batchDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          Delete {selectedIds.size} selected
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {selectedIds.size} companies?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently remove the selected companies. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={handleBatchDelete}
+                          >
+                            Delete All
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
                 <div className="relative max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -379,40 +408,62 @@ export default function AdminCorgiAI() {
             <CardContent>
               {filteredCompanies.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  {companies.length === 0 ? "No companies uploaded yet. Upload a CSV to get started." : "No companies match your search."}
+                  {companies.length === 0 ? "No companies uploaded yet. Upload a CSV or Excel file to get started." : "No companies match your search."}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-[1400px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Company</TableHead>
+                        <TableHead className="w-[40px]">
+                          <Checkbox
+                            checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+                            onCheckedChange={toggleSelectAll}
+                          />
+                        </TableHead>
+                        <TableHead>Company Name</TableHead>
                         <TableHead>Industry</TableHead>
-                        <TableHead>Geography</TableHead>
+                        <TableHead className="max-w-[200px]">Description</TableHead>
+                        <TableHead>Country</TableHead>
                         <TableHead>Revenue</TableHead>
                         <TableHead>PBT</TableHead>
-                        <TableHead>Net Assets</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
+                        <TableHead>Total Assets</TableHead>
+                        <TableHead>Equity</TableHead>
+                        <TableHead>Website</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredCompanies.map((company) => (
-                        <TableRow
-                          key={company.id}
-                          className="cursor-pointer"
-                          onClick={() => navigate(`/company/${company.id}`)}
-                        >
-                          <TableCell className="font-medium">{company.company_name}</TableCell>
+                        <TableRow key={company.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/company/${company.id}`)}>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedIds.has(company.id)}
+                              onCheckedChange={() => toggleSelect(company.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium whitespace-nowrap">{company.company_name}</TableCell>
                           <TableCell className="text-muted-foreground">{company.industry || "—"}</TableCell>
-                          <TableCell className="text-muted-foreground">{company.geography || "—"}</TableCell>
-                          <TableCell>{formatCurrency(company.revenue)}</TableCell>
-                          <TableCell>{formatCurrency(company.profit_before_tax)}</TableCell>
-                          <TableCell>{formatCurrency(company.net_assets)}</TableCell>
-                          <TableCell>
-                            <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full border bg-secondary text-secondary-foreground">
-                              {company.status || "new"}
-                            </span>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs" title={company.description_of_activities || ""}>
+                            {company.description_of_activities || "—"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground whitespace-nowrap">{company.geography || "—"}</TableCell>
+                          <TableCell className="whitespace-nowrap">{formatCurrency(company.revenue)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {company.website ? (
+                              <a
+                                href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline text-sm inline-flex items-center gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Link
+                              </a>
+                            ) : "—"}
                           </TableCell>
                           <TableCell>
                             <AlertDialog>
