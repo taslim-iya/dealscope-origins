@@ -91,6 +91,8 @@ export default function AdminCorgiAI() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [bgProcessing, setBgProcessing] = useState(false);
+  const [estimatedCompanies, setEstimatedCompanies] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
