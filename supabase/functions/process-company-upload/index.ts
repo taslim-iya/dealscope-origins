@@ -102,11 +102,12 @@ function fallbackMapping(headers: string[]): Map<string, { db_field: string; is_
     profit_before_tax: ["profit_before_tax", "pbt", "profit", "operating_profit", "pre_tax_profit", "ebitda"],
     net_assets: ["net_assets", "net_asset_value", "nav", "shareholders_funds", "equity"],
     total_assets: ["total_assets", "assets", "total_asset_value", "gross_assets"],
+    number_of_employees: ["number_of_employees", "employees", "headcount", "staff", "fte", "workforce", "no_of_employees", "num_employees"],
     revenue_band: ["revenue_band"],
     asset_band: ["asset_band"],
     status: ["status"],
   };
-  const numericFields = new Set(["revenue", "profit_before_tax", "net_assets", "total_assets"]);
+  const numericFields = new Set(["revenue", "profit_before_tax", "net_assets", "total_assets", "number_of_employees"]);
 
   for (const h of headers) {
     const norm = normalizeHeader(h);
@@ -135,11 +136,15 @@ function parseCSVWithMapping(
   const headers = parseCSVLine(lines[0]);
   const companies: CompanyRow[] = [];
 
-    const parseNumeric = (value: string, multiplier: number): number | undefined => {
+    const parseNumeric = (value: string, multiplier: number, fieldName: string): number | undefined => {
     if (!value) return undefined;
     const cleaned = value.replace(/[£$,\s%]/g, "");
     const num = parseFloat(cleaned);
     if (isNaN(num)) return undefined;
+    // number_of_employees is a raw count, don't multiply by 1000
+    if (fieldName === "number_of_employees") {
+      return Math.round(num * multiplier);
+    }
     // All financial values in source data are stated in thousands — multiply by 1000
     const adjusted = num * multiplier * 1000;
     return adjusted;
@@ -158,9 +163,9 @@ function parseCSVWithMapping(
       if (!rawValue) return;
 
       if (info.is_numeric) {
-        const num = parseNumeric(rawValue, info.multiplier);
+        const num = parseNumeric(rawValue, info.multiplier, info.db_field);
         if (num !== undefined) {
-          // Sanity check: revenue/financial fields should be > 1000 to avoid year-like values (e.g. 1820)
+          // Sanity check: financial fields should be > 1000 to avoid year-like values
           if (["revenue", "profit_before_tax", "net_assets", "total_assets"].includes(info.db_field) && num > 0 && num < 1000) {
             // Skip — likely a year or code, not a financial value
           } else {
@@ -297,15 +302,62 @@ ACCEPT entries that look like real business/company names, even if abbreviated o
   return validCompanies;
 }
 
-async function insertInBatches(
+async function upsertInBatches(
   supabase: ReturnType<typeof createClient>,
   mandateId: string,
   companies: CompanyRow[]
-): Promise<number> {
+): Promise<{ inserted: number; updated: number }> {
   let totalInserted = 0;
+  let totalUpdated = 0;
 
-  for (let i = 0; i < companies.length; i += BATCH_SIZE) {
-    const batch = companies.slice(i, i + BATCH_SIZE);
+  // First, fetch all existing company names for this mandate to detect duplicates
+  const existingNames = new Map<string, string>(); // normalized name -> id
+  let from = 0;
+  const FETCH_SIZE = 1000;
+  while (true) {
+    const { data } = await supabase
+      .from("companies")
+      .select("id, company_name")
+      .eq("mandate_id", mandateId)
+      .range(from, from + FETCH_SIZE - 1);
+    if (!data || data.length === 0) break;
+    for (const row of data) {
+      existingNames.set(row.company_name.trim().toUpperCase(), row.id);
+    }
+    if (data.length < FETCH_SIZE) break;
+    from += FETCH_SIZE;
+  }
+  console.log(`Found ${existingNames.size} existing companies in mandate for dedup`);
+
+  const toInsert: CompanyRow[] = [];
+  const toUpdate: { id: string; data: Record<string, unknown> }[] = [];
+
+  for (const c of companies) {
+    const key = (c.company_name as string).trim().toUpperCase();
+    const existingId = existingNames.get(key);
+    if (existingId) {
+      // Update existing record with new non-null values
+      const updateData: Record<string, unknown> = {};
+      for (const [field, value] of Object.entries(c)) {
+        if (field === "company_name" || field === "status") continue;
+        if (value !== null && value !== undefined && value !== "") {
+          updateData[field] = value;
+        }
+      }
+      if (Object.keys(updateData).length > 0) {
+        toUpdate.push({ id: existingId, data: updateData });
+      }
+    } else {
+      toInsert.push(c);
+      existingNames.set(key, "pending"); // prevent dups within same upload
+    }
+  }
+
+  console.log(`Dedup result: ${toInsert.length} new, ${toUpdate.length} to update`);
+
+  // Batch insert new companies
+  for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+    const batch = toInsert.slice(i, i + BATCH_SIZE);
     const rows = batch.map((c) => ({
       mandate_id: mandateId,
       company_name: c.company_name as string,
@@ -319,6 +371,7 @@ async function insertInBatches(
       profit_before_tax: (c.profit_before_tax as number) || null,
       net_assets: (c.net_assets as number) || null,
       total_assets: (c.total_assets as number) || null,
+      number_of_employees: (c.number_of_employees as number) || null,
       revenue_band: (c.revenue_band as string) || null,
       asset_band: (c.asset_band as string) || null,
       status: (c.status as string) || "new",
@@ -330,14 +383,31 @@ async function insertInBatches(
       .select("id");
 
     if (error) {
-      console.error(`Batch ${i / BATCH_SIZE + 1} insert error:`, error.message);
+      console.error(`Insert batch ${Math.floor(i / BATCH_SIZE) + 1} error:`, error.message);
     } else {
       totalInserted += data?.length || 0;
     }
-    console.log(`Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}, total so far: ${totalInserted}`);
   }
 
-  return totalInserted;
+  // Batch update existing companies
+  const UPDATE_BATCH = 50;
+  for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH) {
+    const batch = toUpdate.slice(i, i + UPDATE_BATCH);
+    const promises = batch.map(({ id, data }) =>
+      supabase.from("companies").update(data).eq("id", id)
+    );
+    const results = await Promise.all(promises);
+    for (const r of results) {
+      if (r.error) {
+        console.error("Update error:", r.error.message);
+      } else {
+        totalUpdated++;
+      }
+    }
+  }
+
+  console.log(`Upsert complete: ${totalInserted} inserted, ${totalUpdated} updated`);
+  return { inserted: totalInserted, updated: totalUpdated };
 }
 
 async function storeCSV(
@@ -437,13 +507,19 @@ async function processInBackground(
     });
     console.log(`Background: ${deduplicated.length} unique companies after deduplication (${validatedCompanies.length - deduplicated.length} duplicates removed)`);
 
-    const totalInserted = await insertInBatches(supabase, mandateId, deduplicated);
-    console.log(`Background: inserted ${totalInserted} companies total`);
+    const { inserted: totalInserted, updated: totalUpdated } = await upsertInBatches(supabase, mandateId, deduplicated);
+    console.log(`Background: ${totalInserted} inserted, ${totalUpdated} updated`);
+
+    // Get actual total count for mandate
+    const { count: actualCount } = await supabase
+      .from("companies")
+      .select("*", { count: "exact", head: true })
+      .eq("mandate_id", mandateId);
 
     // Update mandate
     await supabase
       .from("mandates")
-      .update({ companies_delivered: totalInserted, status: "active" })
+      .update({ companies_delivered: actualCount || totalInserted, status: "active" })
       .eq("id", mandateId);
 
     // Update domain allowance

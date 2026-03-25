@@ -1,0 +1,1 @@
+ALTER TABLE public.companies ADD COLUMN number_of_employees integer NULL;

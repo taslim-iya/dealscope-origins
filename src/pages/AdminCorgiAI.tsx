@@ -65,6 +65,7 @@ interface Company {
   profit_before_tax: number | null;
   net_assets: number | null;
   total_assets: number | null;
+  number_of_employees: number | null;
   status: string | null;
   website: string | null;
   description_of_activities: string | null;
@@ -668,6 +669,9 @@ export default function AdminCorgiAI() {
                           <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("net_assets")}>
                             <span className="inline-flex items-center">Equity<SortIcon field="net_assets" /></span>
                           </TableHead>
+                          <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("number_of_employees")}>
+                            <span className="inline-flex items-center">Employees<SortIcon field="number_of_employees" /></span>
+                          </TableHead>
                           <TableHead>Website</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
@@ -691,6 +695,7 @@ export default function AdminCorgiAI() {
                             <TableCell className="whitespace-nowrap">{formatCurrency(company.profit_before_tax)}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatCurrency(company.total_assets)}</TableCell>
                             <TableCell className="whitespace-nowrap">{formatCurrency(company.net_assets)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{company.number_of_employees?.toLocaleString() || "—"}</TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               {company.website ? (
                                 <a
