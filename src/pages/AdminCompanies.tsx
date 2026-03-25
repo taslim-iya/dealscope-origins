@@ -165,85 +165,85 @@ export default function AdminCompanies() {
     }
   }, [user, navigate, toast]);
 
+  const fetchData = async (pageNum?: number) => {
+    if (!isAdmin) return;
+    setLoading(true);
+
+    // Fetch all mandates with client info
+    const { data: mandatesData } = await supabase
+      .from("mandates")
+      .select("id, name, status, user_id, created_at, industry_description, regions, revenue_min, revenue_max")
+      .order("created_at", { ascending: false });
+
+    if (mandatesData) {
+      const userIds = [...new Set(mandatesData.map((m) => m.user_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, company_name")
+        .in("id", userIds);
+
+      const profilesMap = new Map<string, Profile>();
+      profilesData?.forEach((p) => profilesMap.set(p.id, p));
+
+      const mandatesWithProfiles = mandatesData.map((m) => ({
+        ...m,
+        profile: profilesMap.get(m.user_id),
+      }));
+      setMandates(mandatesWithProfiles);
+    }
+
+    // Get total count
+    const { count } = await supabase
+      .from("companies")
+      .select("*", { count: "exact", head: true });
+    setTotalCount(count || 0);
+
+    // Fetch current page of companies
+    const p = pageNum ?? page;
+    const from = p * PAGE_SIZE;
+    const { data: companiesData, error } = await supabase
+      .from("companies")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error("Failed to fetch companies:", error);
+    }
+
+    if (companiesData && mandatesData) {
+      const mandateMap = new Map<string, Mandate>();
+      mandatesData.forEach((m) => {
+        mandateMap.set(m.id, m as Mandate);
+      });
+
+      const companiesWithMandates = companiesData.map((c) => ({
+        ...c,
+        mandate: mandateMap.get(c.mandate_id),
+      }));
+      setCompanies(companiesWithMandates);
+
+      // Extract unique filter values (from current page — approximate)
+      const uniqueIndustries = [...new Set(companiesData.map((c) => c.industry).filter(Boolean))] as string[];
+      const uniqueGeographies = [...new Set(companiesData.map((c) => c.geography).filter(Boolean))] as string[];
+      setIndustries(uniqueIndustries.sort());
+      setGeographies(uniqueGeographies.sort());
+    }
+
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      if (!isAdmin) return;
-      setLoading(true);
-
-      // Fetch all mandates with client info
-      const { data: mandatesData } = await supabase
-        .from("mandates")
-        .select("id, name, status, user_id, created_at, industry_description, regions, revenue_min, revenue_max")
-        .order("created_at", { ascending: false });
-
-      if (mandatesData) {
-        const userIds = [...new Set(mandatesData.map((m) => m.user_id))];
-        const { data: profilesData } = await supabase
-          .from("profiles")
-          .select("id, email, full_name, company_name")
-          .in("id", userIds);
-
-        const profilesMap = new Map<string, Profile>();
-        profilesData?.forEach((p) => profilesMap.set(p.id, p));
-
-        const mandatesWithProfiles = mandatesData.map((m) => ({
-          ...m,
-          profile: profilesMap.get(m.user_id),
-        }));
-        setMandates(mandatesWithProfiles);
-      }
-
-      // Fetch all companies using paginated ranges
-      const pageSize = 1000;
-      let from = 0;
-      let allCompanies: any[] = [];
-
-      while (true) {
-        const { data: batch, error } = await supabase
-          .from("companies")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(from, from + pageSize - 1);
-
-        if (error) {
-          console.error("Failed to fetch companies:", error);
-          break;
-        }
-
-        allCompanies = allCompanies.concat(batch || []);
-        if (!batch || batch.length < pageSize) break;
-        from += pageSize;
-      }
-
-      const companiesData = allCompanies;
-      if (companiesData && mandatesData) {
-        // Map mandates to companies
-        const mandateMap = new Map<string, Mandate>();
-        mandatesData.forEach((m) => {
-          const userIds = [...new Set(mandatesData.map((md) => md.user_id))];
-          mandateMap.set(m.id, m as Mandate);
-        });
-
-        const companiesWithMandates = companiesData.map((c) => ({
-          ...c,
-          mandate: mandateMap.get(c.mandate_id),
-        }));
-        setCompanies(companiesWithMandates);
-
-        // Extract unique filter values
-        const uniqueIndustries = [...new Set(companiesData.map((c) => c.industry).filter(Boolean))] as string[];
-        const uniqueGeographies = [...new Set(companiesData.map((c) => c.geography).filter(Boolean))] as string[];
-        setIndustries(uniqueIndustries.sort());
-        setGeographies(uniqueGeographies.sort());
-      }
-
-      setLoading(false);
-    };
-
     if (isAdmin) {
-      fetchData();
+      fetchData(0);
     }
   }, [isAdmin]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setSelectedIds(new Set());
+    fetchData(newPage);
+  };
 
   const handleSignOut = async () => {
     await signOut();
