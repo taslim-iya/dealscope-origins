@@ -107,41 +107,56 @@ function parseCSV(csvText: string): CompanyRow[] {
     };
 
     const company: CompanyRow = {
-      company_name: get("company_name", "company", "name", "business_name", "trading_name") || "",
+      company_name: get("company_name", "company", "name", "business_name", "trading_name",
+        "company_name_latin_alphabet", "company_name_local_alphabet", "entity_name") || "",
       geography: get(
         "geography", "location", "region", "city", "county", "town",
-        "postcode", "registered_office", "country"
+        "postcode", "registered_office", "country", "country_iso_code",
+        "state", "province", "country_name"
       ),
       industry: get(
         "industry", "sector", "sic_description", "sic_text", "sic",
         "sic_code", "trade", "activity", "business_type", "trade_classification",
-        "principal_activity", "nature_of_business"
+        "principal_activity", "nature_of_business", "nace_rev_2_main_section",
+        "nace_rev_2_core_code_4_digits", "nace_rev_2_description",
+        "bvd_major_sector", "nace_rev_2_secondary_code"
       ),
       description_of_activities: get(
         "description_of_activities", "description", "activities",
-        "business_description", "trading_activities"
+        "business_description", "trading_activities",
+        "trade_description_english", "trade_description_original_language",
+        "overview", "products_services"
       ),
       companies_house_number: get(
         "companies_house_number", "company_number", "ch_number",
-        "registration_number", "crn", "company_registration_number"
+        "registration_number", "crn", "company_registration_number",
+        "bvd_id_number", "national_id"
       ),
-      website: get("website", "url", "web", "web_address"),
-      address: get("address", "registered_address", "office_address", "full_address"),
+      website: get("website", "url", "web", "web_address", "website_address"),
+      address: get("address", "registered_address", "office_address", "full_address",
+        "address_line_1", "city_internat", "postcode"
+      ),
       revenue: getNum(
         "revenue", "turnover", "sales", "turnover_gbp",
-        "annual_revenue", "latest_turnover", "annual_turnover"
+        "annual_revenue", "latest_turnover", "annual_turnover",
+        "operating_revenue_turnover", "operating_revenue_turnover_th_usd",
+        "operating_revenue_turnover_th_eur", "operating_revenue_turnover_th_gbp"
       ),
       profit_before_tax: getNum(
         "profit_before_tax", "pbt", "profit", "operating_profit",
-        "net_profit", "profit_gbp", "pre_tax_profit"
+        "net_profit", "profit_gbp", "pre_tax_profit",
+        "p_l_before_tax", "p_l_before_tax_th_usd", "profit_loss_before_tax",
+        "ebitda", "ebitda_th_usd"
       ),
       net_assets: getNum(
         "net_assets", "net_asset_value", "nav",
-        "shareholders_funds", "equity", "net_worth"
+        "shareholders_funds", "equity", "net_worth",
+        "shareholders_funds_th_usd", "shareholders_funds_th_eur"
       ),
       total_assets: getNum(
         "total_assets", "assets", "total_asset_value",
-        "fixed_assets", "gross_assets"
+        "fixed_assets", "gross_assets",
+        "total_assets_th_usd", "total_assets_th_eur", "total_assets_th_gbp"
       ),
       revenue_band: get("revenue_band"),
       asset_band: get("asset_band"),
