@@ -163,14 +163,31 @@ export default function AdminCorgiAI() {
   };
 
   const fetchCompanies = async (mId: string) => {
-    const { data, error } = await supabase
-      .from("companies")
-      .select("*")
-      .eq("mandate_id", mId)
-      .order("created_at", { ascending: false })
-      .limit(1000000);
+    const pageSize = 1000;
+    let from = 0;
+    let allRows: Company[] = [];
 
-    if (!error && data) setCompanies(data as Company[]);
+    while (true) {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("mandate_id", mId)
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error("Failed to fetch companies:", error);
+        break;
+      }
+
+      const batch = (data || []) as Company[];
+      allRows = allRows.concat(batch);
+
+      if (batch.length < pageSize) break;
+      from += pageSize;
+    }
+
+    setCompanies(allRows);
     setLoading(false);
   };
 
