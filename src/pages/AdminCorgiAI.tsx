@@ -351,9 +351,21 @@ export default function AdminCorgiAI() {
               </p>
             </div>
             {companies.length > 0 && (
-              <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
-                <Download className="h-4 w-4" />Export CSV
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReanalyze}
+                  disabled={enriching}
+                  className="gap-2"
+                >
+                  {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Re-analyze with AI
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
+                  <Download className="h-4 w-4" />Export CSV
+                </Button>
+              </div>
             )}
           </div>
 
