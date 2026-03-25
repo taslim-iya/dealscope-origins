@@ -49,7 +49,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UploadProgressIndicator } from "@/components/admin/UploadProgressIndicator";
-import { Sparkles } from "lucide-react";
 
 const CORGI_AI_MANDATE_NAME = "Corgi AI";
 
