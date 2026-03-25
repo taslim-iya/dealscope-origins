@@ -473,7 +473,7 @@ export default function AdminMandateView() {
                       {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
                     </div>
 
-                    {uploadResult && (
+                    {uploadResult && !bgProcessing && (
                       <div
                         className={`flex items-center gap-2 p-3 rounded-lg ${
                           uploadResult.success
@@ -488,6 +488,17 @@ export default function AdminMandateView() {
                         )}
                         <span className="text-sm">{uploadResult.message}</span>
                       </div>
+                    )}
+                    {bgProcessing && id && (
+                      <UploadProgressIndicator
+                        mandateId={id}
+                        isProcessing={bgProcessing}
+                        estimatedCompanies={estimatedCompanies}
+                        onComplete={() => {
+                          setBgProcessing(false);
+                          fetchData();
+                        }}
+                      />
                     )}
 
                     {analyzingCsv && (
