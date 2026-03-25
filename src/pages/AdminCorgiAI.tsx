@@ -268,6 +268,32 @@ export default function AdminCorgiAI() {
     setBatchDeleting(false);
   };
 
+  const [deletingAll, setDeletingAll] = useState(false);
+  const handleDeleteAll = async () => {
+    if (!mandateId) return;
+    setDeletingAll(true);
+    // Delete in batches of 100 IDs at a time
+    const allIds = companies.map((c) => c.id);
+    let failed = false;
+    for (let i = 0; i < allIds.length; i += 100) {
+      const batch = allIds.slice(i, i + 100);
+      const { error } = await supabase.from("companies").delete().in("id", batch);
+      if (error) {
+        toast({ title: "Delete all failed", description: error.message, variant: "destructive" });
+        failed = true;
+        break;
+      }
+    }
+    if (!failed) {
+      setCompanies([]);
+      setSelectedIds(new Set());
+      toast({ title: `Deleted all ${allIds.length} companies` });
+      // Update mandate count
+      await supabase.from("mandates").update({ companies_delivered: 0 }).eq("id", mandateId);
+    }
+    setDeletingAll(false);
+  };
+
   const handleReanalyze = async () => {
     if (!mandateId) return;
     setEnriching(true);
@@ -561,7 +587,34 @@ export default function AdminCorgiAI() {
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={handleBatchDelete}
                           >
-                            Delete All
+                            Delete Selected
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                  {companies.length > 0 && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" disabled={deletingAll} className="gap-2">
+                          {deletingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          Delete All ({companies.length})
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete ALL {companies.length} companies?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently remove every company in this mandate. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={handleDeleteAll}
+                          >
+                            Delete All Companies
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
