@@ -79,6 +79,8 @@ export default function AdminDashboard() {
     success: boolean;
     message: string;
   } | null>(null);
+  const [bgProcessing, setBgProcessing] = useState(false);
+  const [estimatedCompanies, setEstimatedCompanies] = useState(0);
   const [allUsers, setAllUsers] = useState<UserWithRole[]>([]);
   const [loadingRoleChange, setLoadingRoleChange] = useState<string | null>(null);
 

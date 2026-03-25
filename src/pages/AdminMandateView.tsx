@@ -124,6 +124,8 @@ export default function AdminMandateView() {
     success: boolean;
     message: string;
   } | null>(null);
+  const [bgProcessing, setBgProcessing] = useState(false);
+  const [estimatedCompanies, setEstimatedCompanies] = useState(0);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, any> | null>(null);
   const [analyzingCsv, setAnalyzingCsv] = useState(false);
   const [lastCsvContent, setLastCsvContent] = useState<string | null>(null);
