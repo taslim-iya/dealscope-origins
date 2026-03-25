@@ -272,23 +272,14 @@ export default function AdminCorgiAI() {
   const handleDeleteAll = async () => {
     if (!mandateId) return;
     setDeletingAll(true);
-    // Delete in batches of 100 IDs at a time
-    const allIds = companies.map((c) => c.id);
-    let failed = false;
-    for (let i = 0; i < allIds.length; i += 100) {
-      const batch = allIds.slice(i, i + 100);
-      const { error } = await supabase.from("companies").delete().in("id", batch);
-      if (error) {
-        toast({ title: "Delete all failed", description: error.message, variant: "destructive" });
-        failed = true;
-        break;
-      }
-    }
-    if (!failed) {
+    // Delete ALL companies for this mandate in one query (not limited to loaded ones)
+    const { error } = await supabase.from("companies").delete().eq("mandate_id", mandateId);
+    if (error) {
+      toast({ title: "Delete all failed", description: error.message, variant: "destructive" });
+    } else {
       setCompanies([]);
       setSelectedIds(new Set());
-      toast({ title: `Deleted all ${allIds.length} companies` });
-      // Update mandate count
+      toast({ title: "Deleted all companies for this mandate" });
       await supabase.from("mandates").update({ companies_delivered: 0 }).eq("id", mandateId);
     }
     setDeletingAll(false);
