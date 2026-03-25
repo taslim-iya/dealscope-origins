@@ -1,10 +1,9 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface CompanyRow {
@@ -24,21 +23,17 @@ interface CompanyRow {
   total_assets?: number;
 }
 
-/**
- * Parse a single CSV line handling quoted fields with commas inside.
- */
 function parseCSVLine(line: string): string[] {
   const fields: string[] = [];
   let current = "";
   let inQuotes = false;
-
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     if (inQuotes) {
       if (char === '"') {
         if (i + 1 < line.length && line[i + 1] === '"') {
           current += '"';
-          i++; // skip escaped quote
+          i++;
         } else {
           inQuotes = false;
         }
@@ -69,7 +64,7 @@ function parseCSV(csvText: string): CompanyRow[] {
   if (lines.length < 2) return [];
 
   const headers = parseCSVLine(lines[0]).map(normalizeHeader);
-  console.log("Detected headers:", headers);
+  console.log("Detected headers:", headers.slice(0, 10));
 
   const companies: CompanyRow[] = [];
 
@@ -172,7 +167,110 @@ function parseCSV(csvText: string): CompanyRow[] {
   return companies;
 }
 
-serve(async (req) => {
+const BATCH_SIZE = 500;
+
+async function insertInBatches(
+  supabase: ReturnType<typeof createClient>,
+  mandateId: string,
+  companies: CompanyRow[]
+): Promise<number> {
+  let totalInserted = 0;
+
+  for (let i = 0; i < companies.length; i += BATCH_SIZE) {
+    const batch = companies.slice(i, i + BATCH_SIZE);
+    const rows = batch.map((c) => ({
+      mandate_id: mandateId,
+      company_name: c.company_name,
+      geography: c.geography || null,
+      industry: c.industry || null,
+      description_of_activities: c.description_of_activities || null,
+      companies_house_number: c.companies_house_number || null,
+      website: c.website || null,
+      address: c.address || null,
+      revenue: c.revenue || null,
+      profit_before_tax: c.profit_before_tax || null,
+      net_assets: c.net_assets || null,
+      total_assets: c.total_assets || null,
+      revenue_band: c.revenue_band || null,
+      asset_band: c.asset_band || null,
+      status: c.status || "new",
+    }));
+
+    const { data, error } = await supabase
+      .from("companies")
+      .insert(rows)
+      .select("id");
+
+    if (error) {
+      console.error(`Batch ${i / BATCH_SIZE + 1} insert error:`, error.message);
+    } else {
+      totalInserted += data?.length || 0;
+    }
+    console.log(`Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}, total so far: ${totalInserted}`);
+  }
+
+  return totalInserted;
+}
+
+async function processInBackground(
+  authHeader: string,
+  mandateId: string,
+  csvContent: string
+) {
+  try {
+    // Use service role for background work since the original auth context may expire
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const companies = parseCSV(csvContent);
+    console.log(`Background: parsed ${companies.length} companies`);
+
+    if (companies.length === 0) {
+      console.error("Background: No valid companies found");
+      return;
+    }
+
+    const totalInserted = await insertInBatches(supabase, mandateId, companies);
+    console.log(`Background: inserted ${totalInserted} companies total`);
+
+    // Update mandate
+    await supabase
+      .from("mandates")
+      .update({ companies_delivered: totalInserted, status: "active" })
+      .eq("id", mandateId);
+
+    // Update domain allowance
+    const { data: mandateData } = await supabase
+      .from("mandates")
+      .select("domain_id")
+      .eq("id", mandateId)
+      .single();
+
+    if (mandateData?.domain_id) {
+      const { data: domainData } = await supabase
+        .from("domains")
+        .select("free_companies_remaining")
+        .eq("id", mandateData.domain_id)
+        .single();
+
+      if (domainData) {
+        const newRemaining = Math.max(0, domainData.free_companies_remaining - totalInserted);
+        await supabase
+          .from("domains")
+          .update({ free_companies_remaining: newRemaining })
+          .eq("id", mandateData.domain_id);
+      }
+    }
+
+    console.log("Background processing complete");
+  } catch (error) {
+    console.error("Background processing error:", error);
+  }
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -193,7 +291,6 @@ serve(async (req) => {
     );
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
@@ -201,13 +298,11 @@ serve(async (req) => {
       );
     }
 
-    const userId = user.id;
-
-    // Check if user is admin
+    // Check admin
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("role", "admin")
       .maybeSingle();
 
@@ -241,92 +336,18 @@ serve(async (req) => {
       );
     }
 
-    // Parse CSV
-    const companies = parseCSV(csv_content);
+    // Quick row count estimate for the response
+    const lineCount = csv_content.split("\n").length - 1;
 
-    if (companies.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "No valid companies found in CSV" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Insert companies
-    const companiesToInsert = companies.map((c) => ({
-      mandate_id,
-      company_name: c.company_name,
-      geography: c.geography || null,
-      industry: c.industry || null,
-      description_of_activities: c.description_of_activities || null,
-      companies_house_number: c.companies_house_number || null,
-      website: c.website || null,
-      address: c.address || null,
-      revenue: c.revenue || null,
-      profit_before_tax: c.profit_before_tax || null,
-      net_assets: c.net_assets || null,
-      total_assets: c.total_assets || null,
-      revenue_band: c.revenue_band || null,
-      asset_band: c.asset_band || null,
-      status: c.status || "new",
-    }));
-
-    const { data: insertedCompanies, error: insertError } = await supabase
-      .from("companies")
-      .insert(companiesToInsert)
-      .select("id");
-
-    if (insertError) {
-      console.error("Insert error:", insertError);
-      return new Response(
-        JSON.stringify({ error: "Failed to insert companies", details: insertError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Update mandate companies_delivered count
-    const { error: updateError } = await supabase
-      .from("mandates")
-      .update({
-        companies_delivered: insertedCompanies?.length || 0,
-        status: "active",
-      })
-      .eq("id", mandate_id);
-
-    if (updateError) {
-      console.error("Update error:", updateError);
-    }
-
-    // Update domain free allowance
-    const { data: mandateData } = await supabase
-      .from("mandates")
-      .select("domain_id")
-      .eq("id", mandate_id)
-      .single();
-
-    if (mandateData?.domain_id) {
-      const { data: domainData } = await supabase
-        .from("domains")
-        .select("free_companies_remaining")
-        .eq("id", mandateData.domain_id)
-        .single();
-
-      if (domainData) {
-        const newRemaining = Math.max(
-          0,
-          domainData.free_companies_remaining - (insertedCompanies?.length || 0)
-        );
-        await supabase
-          .from("domains")
-          .update({ free_companies_remaining: newRemaining })
-          .eq("id", mandateData.domain_id);
-      }
-    }
+    // Kick off background processing so we don't hit CPU time limits
+    EdgeRuntime.waitUntil(processInBackground(authHeader, mandate_id, csv_content));
 
     return new Response(
       JSON.stringify({
         success: true,
-        companies_added: insertedCompanies?.length || 0,
+        message: `Processing ~${lineCount} companies in the background. They will appear shortly.`,
         mandate_name: mandate.name,
+        estimated_companies: lineCount,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
