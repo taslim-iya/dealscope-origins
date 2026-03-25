@@ -81,7 +81,12 @@ interface Company {
   asset_band: string | null;
   status: string | null;
   revenue: number | null;
+  profit_before_tax: number | null;
+  net_assets: number | null;
+  total_assets: number | null;
   website: string | null;
+  description_of_activities: string | null;
+  address: string | null;
   mandate_id: string;
   created_at: string;
   mandate?: Mandate;
