@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { GripVertical } from "lucide-react";
+import { GripVertical, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 export interface ColumnDef<T> {
   id: string;
@@ -11,6 +11,7 @@ export interface ColumnDef<T> {
   headerRender?: () => React.ReactNode;
   className?: string;
   cellClassName?: string;
+  sortKey?: (item: T) => string | number | null | undefined;
 }
 
 interface ResizableDataTableProps<T> {
@@ -39,6 +40,10 @@ export function ResizableDataTable<T>({
     return widths;
   });
 
+  // Sort state
+  const [sortColId, setSortColId] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
   // Keep column order in sync when columns change
   useEffect(() => {
     setColumnOrder((prev) => {
@@ -52,6 +57,37 @@ export function ResizableDataTable<T>({
   const orderedColumns = columnOrder
     .map((id) => initialColumns.find((c) => c.id === id))
     .filter(Boolean) as ColumnDef<T>[];
+
+  // --- Sort logic ---
+  const handleSort = (colId: string) => {
+    const col = initialColumns.find((c) => c.id === colId);
+    if (!col?.sortKey) return;
+    if (sortColId === colId) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColId(colId);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedData = React.useMemo(() => {
+    if (!sortColId) return data;
+    const col = initialColumns.find((c) => c.id === sortColId);
+    if (!col?.sortKey) return data;
+    const getter = col.sortKey;
+    return [...data].sort((a, b) => {
+      const aVal = getter(a);
+      const bVal = getter(b);
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      const cmp =
+        typeof aVal === "number" && typeof bVal === "number"
+          ? aVal - bVal
+          : String(aVal).localeCompare(String(bVal));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [data, sortColId, sortDir, initialColumns]);
 
   // --- Resize logic ---
   const resizingRef = useRef<{ colId: string; startX: number; startWidth: number } | null>(null);
@@ -94,7 +130,6 @@ export function ResizableDataTable<T>({
   const handleDragStart = (colId: string, e: React.DragEvent) => {
     dragColRef.current = colId;
     e.dataTransfer.effectAllowed = "move";
-    // Use a transparent drag image
     const el = document.createElement("div");
     el.style.opacity = "0";
     document.body.appendChild(el);
@@ -136,6 +171,15 @@ export function ResizableDataTable<T>({
     return <>{emptyState}</>;
   }
 
+  const SortIcon = ({ colId }: { colId: string }) => {
+    const col = initialColumns.find((c) => c.id === colId);
+    if (!col?.sortKey) return null;
+    if (sortColId !== colId) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40 shrink-0" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="h-3 w-3 ml-1 shrink-0" />
+      : <ArrowDown className="h-3 w-3 ml-1 shrink-0" />;
+  };
+
   return (
     <div className="overflow-x-auto border border-border rounded-md">
       <table style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
@@ -148,6 +192,7 @@ export function ResizableDataTable<T>({
                 className={cn(
                   "h-10 px-3 text-left align-middle text-xs font-medium text-muted-foreground select-none",
                   dragOverCol === col.id && "bg-accent/40",
+                  col.sortKey && "cursor-pointer hover:text-foreground",
                   col.className
                 )}
                 draggable
@@ -155,10 +200,16 @@ export function ResizableDataTable<T>({
                 onDragOver={(e) => handleDragOver(col.id, e)}
                 onDrop={() => handleDrop(col.id)}
                 onDragEnd={handleDragEnd}
+                onClick={() => handleSort(col.id)}
               >
                 <div className="flex items-center gap-1 cursor-grab active:cursor-grabbing">
                   <GripVertical className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                  {col.headerRender ? col.headerRender() : <span className="truncate">{col.label}</span>}
+                  {col.headerRender ? col.headerRender() : (
+                    <span className="truncate inline-flex items-center">
+                      {col.label}
+                      <SortIcon colId={col.id} />
+                    </span>
+                  )}
                 </div>
                 {/* Resize handle */}
                 <div
@@ -170,7 +221,7 @@ export function ResizableDataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {data.map((item) => (
+          {sortedData.map((item) => (
             <tr
               key={rowKey(item)}
               className={cn(
