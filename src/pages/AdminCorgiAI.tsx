@@ -303,11 +303,38 @@ export default function AdminCorgiAI() {
     URL.revokeObjectURL(url);
   };
 
-  const filteredCompanies = companies.filter((c) =>
-    c.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.industry || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.geography || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const toggleSort = (field: keyof Company) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: keyof Company }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
+  const filteredCompanies = companies
+    .filter((c) =>
+      c.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.industry || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.geography || "").toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (!sortField) return 0;
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      const cmp = typeof aVal === "number" && typeof bVal === "number"
+        ? aVal - bVal
+        : String(aVal).localeCompare(String(bVal));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
 
   if (authLoading || checkingAdmin || loading) {
     return (
