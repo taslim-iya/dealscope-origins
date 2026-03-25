@@ -14,6 +14,7 @@ import {
   Download,
   ExternalLink,
   Sparkles,
+  Globe,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
