@@ -293,6 +293,147 @@ export default function AdminCompanies() {
     return matchesSearch && matchesIndustry && matchesGeography && matchesStatus && matchesMandate;
   });
 
+  // Table column definitions
+  const tableColumns: ColumnDef<Company>[] = useMemo(() => [
+    {
+      id: "select",
+      label: "",
+      defaultWidth: 40,
+      minWidth: 40,
+      headerRender: () => (
+        <Checkbox
+          checked={selectedIds.size === filteredCompanies.length && filteredCompanies.length > 0}
+          onCheckedChange={toggleSelectAll}
+        />
+      ),
+      render: (company) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selectedIds.has(company.id)}
+            onCheckedChange={() => toggleSelect(company.id)}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "company_name",
+      label: "Company Name",
+      defaultWidth: 180,
+      minWidth: 100,
+      cellClassName: "font-medium",
+      render: (c) => c.company_name,
+    },
+    {
+      id: "industry",
+      label: "Industry",
+      defaultWidth: 140,
+      minWidth: 80,
+      cellClassName: "text-muted-foreground",
+      render: (c) => c.industry || "—",
+    },
+    {
+      id: "description",
+      label: "Description",
+      defaultWidth: 200,
+      minWidth: 100,
+      cellClassName: "text-muted-foreground text-xs",
+      render: (c) => (
+        <span title={c.description_of_activities || ""}>{c.description_of_activities || "—"}</span>
+      ),
+    },
+    {
+      id: "country",
+      label: "Country",
+      defaultWidth: 110,
+      minWidth: 70,
+      cellClassName: "text-muted-foreground",
+      render: (c) => c.geography || "—",
+    },
+    {
+      id: "revenue",
+      label: "Revenue",
+      defaultWidth: 100,
+      minWidth: 70,
+      render: (c) => c.revenue ? formatCurrency(c.revenue) : c.revenue_band || "—",
+    },
+    {
+      id: "pbt",
+      label: "PBT",
+      defaultWidth: 90,
+      minWidth: 60,
+      render: (c) => formatCurrency(c.profit_before_tax),
+    },
+    {
+      id: "total_assets",
+      label: "Total Assets",
+      defaultWidth: 100,
+      minWidth: 70,
+      render: (c) => formatCurrency(c.total_assets),
+    },
+    {
+      id: "equity",
+      label: "Equity",
+      defaultWidth: 90,
+      minWidth: 60,
+      render: (c) => formatCurrency(c.net_assets),
+    },
+    {
+      id: "website",
+      label: "Website",
+      defaultWidth: 80,
+      minWidth: 60,
+      render: (c) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          {c.website ? (
+            <a
+              href={c.website.startsWith("http") ? c.website : `https://${c.website}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline text-sm inline-flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Link
+            </a>
+          ) : "—"}
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      label: "",
+      defaultWidth: 50,
+      minWidth: 40,
+      render: (company) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {company.company_name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove this company. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => handleDeleteCompany(company.id, company.company_name)}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ),
+    },
+  ], [selectedIds, filteredCompanies.length]);
+
   // Get unique clients from mandates
   const uniqueClients = [...new Map(mandates.map((m) => [m.profile?.id, m.profile])).values()].filter(Boolean);
 
