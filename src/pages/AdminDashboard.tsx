@@ -476,7 +476,7 @@ export default function AdminDashboard() {
                     <Input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.xlsx,.xls"
                       onChange={handleFileUpload}
                       disabled={!selectedMandate || uploading}
                       className="max-w-md"

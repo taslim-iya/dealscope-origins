@@ -463,7 +463,7 @@ export default function AdminMandateView() {
                       <Input
                         ref={fileInputRef}
                         type="file"
-                        accept=".csv"
+                        accept=".csv,.xlsx,.xls"
                         onChange={handleFileUpload}
                         disabled={uploading}
                         className="max-w-md"

@@ -307,7 +307,7 @@ export default function AdminCorgiAI() {
                   <Input
                     ref={fileInputRef}
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.xlsx,.xls"
                     onChange={handleFileUpload}
                     disabled={uploading}
                     className="max-w-md"
