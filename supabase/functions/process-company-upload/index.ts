@@ -421,7 +421,17 @@ async function processInBackground(
       return;
     }
 
-    const totalInserted = await insertInBatches(supabase, mandateId, validatedCompanies);
+    // Deduplicate by company_name (keep first occurrence)
+    const seen = new Set<string>();
+    const deduplicated = validatedCompanies.filter((c) => {
+      const key = (c.company_name as string).trim().toUpperCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    console.log(`Background: ${deduplicated.length} unique companies after deduplication (${validatedCompanies.length - deduplicated.length} duplicates removed)`);
+
+    const totalInserted = await insertInBatches(supabase, mandateId, deduplicated);
     console.log(`Background: inserted ${totalInserted} companies total`);
 
     // Update mandate
