@@ -327,9 +327,9 @@ export default function AdminCorgiAI() {
 
       toast({ title: "Web enrichment started", description: data?.message || "Searching the web to fill missing company data." });
       // Poll for updates
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 15000);
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 30000);
-      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 60000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 15000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 30000);
+      setTimeout(() => { if (mandateId) { fetchCount(mandateId); fetchCompanies(mandateId); } }, 60000);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Web enrichment failed";
       toast({ title: "Web enrichment failed", description: msg, variant: "destructive" });
