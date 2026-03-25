@@ -14,6 +14,7 @@ import {
   Download,
   ExternalLink,
   Sparkles,
+  Globe,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -101,6 +102,7 @@ export default function AdminCorgiAI() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [webEnriching, setWebEnriching] = useState(false);
   const [sortField, setSortField] = useState<keyof Company | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -275,6 +277,42 @@ export default function AdminCorgiAI() {
     }
   };
 
+  const handleWebEnrich = async () => {
+    if (!mandateId) return;
+    setWebEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("web-enrich-companies", {
+        body: { mandate_id: mandateId },
+      });
+
+      if (error) {
+        const errorBody = typeof error === "object" && "context" in error
+          ? await (error as any).context?.json?.().catch(() => null)
+          : null;
+        const msg = errorBody?.error || error.message || "Web enrichment failed";
+        toast({ title: "Web enrichment failed", description: msg, variant: "destructive" });
+        return;
+      }
+
+      if (data?.error) {
+        toast({ title: "Web enrichment failed", description: data.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Web enrichment started", description: data?.message || "Searching the web to fill missing company data." });
+      // Poll for updates
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 15000);
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 30000);
+      setTimeout(() => { if (mandateId) fetchCompanies(mandateId); }, 60000);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Web enrichment failed";
+      toast({ title: "Web enrichment failed", description: msg, variant: "destructive" });
+    } finally {
+      setWebEnriching(false);
+    }
+  };
+
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -399,6 +437,16 @@ export default function AdminCorgiAI() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleWebEnrich}
+                  disabled={webEnriching}
+                  className="gap-2"
+                >
+                  {webEnriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                  Enrich with Web Search
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleReanalyze}
                   disabled={enriching}
                   className="gap-2"
@@ -450,6 +498,8 @@ export default function AdminCorgiAI() {
                     onComplete={() => {
                       setBgProcessing(false);
                       fetchCompanies(mandateId);
+                      // Auto-trigger web enrichment after upload completes
+                      setTimeout(() => handleWebEnrich(), 2000);
                     }}
                   />
                 )}
