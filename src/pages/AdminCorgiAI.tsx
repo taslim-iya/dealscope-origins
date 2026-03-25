@@ -455,7 +455,7 @@ export default function AdminCorgiAI() {
                 Corgi AI
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Upload and manage companies for Corgi AI — {companies.length} companies in database
+                Upload and manage companies for Corgi AI — {totalCount.toLocaleString()} companies in database
               </p>
             </div>
             {companies.length > 0 && (
