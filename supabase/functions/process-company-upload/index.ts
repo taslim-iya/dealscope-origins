@@ -136,11 +136,15 @@ function parseCSVWithMapping(
   const headers = parseCSVLine(lines[0]);
   const companies: CompanyRow[] = [];
 
-    const parseNumeric = (value: string, multiplier: number): number | undefined => {
+    const parseNumeric = (value: string, multiplier: number, fieldName: string): number | undefined => {
     if (!value) return undefined;
     const cleaned = value.replace(/[£$,\s%]/g, "");
     const num = parseFloat(cleaned);
     if (isNaN(num)) return undefined;
+    // number_of_employees is a raw count, don't multiply by 1000
+    if (fieldName === "number_of_employees") {
+      return Math.round(num * multiplier);
+    }
     // All financial values in source data are stated in thousands — multiply by 1000
     const adjusted = num * multiplier * 1000;
     return adjusted;
