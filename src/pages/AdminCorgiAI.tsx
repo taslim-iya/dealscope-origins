@@ -245,6 +245,7 @@ export default function AdminCorgiAI() {
     }
   };
 
+  const handleExportCSV = () => {
     if (companies.length === 0) return;
     const headers = ["Company Name", "Industry", "Geography", "Revenue", "Profit Before Tax", "Net Assets", "Website", "Status"];
     const rows = companies.map((c) => [
