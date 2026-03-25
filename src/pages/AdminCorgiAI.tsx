@@ -13,6 +13,7 @@ import {
   Search,
   Download,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,7 @@ export default function AdminCorgiAI() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+  const [enriching, setEnriching] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -232,6 +234,30 @@ export default function AdminCorgiAI() {
     setBatchDeleting(false);
   };
 
+  const handleReanalyze = async () => {
+    if (!mandateId) return;
+    setEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-enrich-companies", {
+        body: { mandate_id: mandateId },
+      });
+      if (error) throw error;
+      toast({ title: "Re-analysis started", description: data.message || "AI is enriching company data from the stored file." });
+      // Poll for updates after a delay
+      setTimeout(() => {
+        if (mandateId) fetchCompanies(mandateId);
+      }, 10000);
+      setTimeout(() => {
+        if (mandateId) fetchCompanies(mandateId);
+      }, 30000);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Re-analysis failed";
+      toast({ title: "Re-analysis failed", description: msg, variant: "destructive" });
+    } finally {
+      setEnriching(false);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -325,9 +351,21 @@ export default function AdminCorgiAI() {
               </p>
             </div>
             {companies.length > 0 && (
-              <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
-                <Download className="h-4 w-4" />Export CSV
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReanalyze}
+                  disabled={enriching}
+                  className="gap-2"
+                >
+                  {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Re-analyze with AI
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
+                  <Download className="h-4 w-4" />Export CSV
+                </Button>
+              </div>
             )}
           </div>
 

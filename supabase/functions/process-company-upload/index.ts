@@ -6,23 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-interface CompanyRow {
-  company_name: string;
-  geography?: string;
-  industry?: string;
-  revenue_band?: string;
-  asset_band?: string;
-  status?: string;
-  description_of_activities?: string;
-  companies_house_number?: string;
-  website?: string;
-  address?: string;
-  revenue?: number;
-  profit_before_tax?: number;
-  net_assets?: number;
-  total_assets?: number;
-}
-
 function parseCSVLine(line: string): string[] {
   const fields: string[] = [];
   let current = "";
@@ -55,115 +38,139 @@ function parseCSVLine(line: string): string[] {
   return fields;
 }
 
+interface ColumnMapping {
+  csv_header: string;
+  db_field: string;
+  confidence: string;
+  is_numeric?: boolean;
+  multiplier?: number;
+}
+
+async function getAIMappings(
+  headers: string[],
+  sampleRows: Record<string, string>[]
+): Promise<ColumnMapping[]> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/ai-map-columns`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${anonKey}`,
+    },
+    body: JSON.stringify({ headers, sample_rows: sampleRows }),
+  });
+
+  if (!response.ok) {
+    console.warn("AI mapping failed, falling back to hardcoded mapping:", await response.text());
+    return [];
+  }
+
+  const { mappings } = await response.json();
+  return mappings || [];
+}
+
+function buildMappingFromAI(mappings: ColumnMapping[]): Map<string, { db_field: string; is_numeric: boolean; multiplier: number }> {
+  const map = new Map();
+  for (const m of mappings) {
+    if (m.confidence === "low") continue;
+    map.set(m.csv_header, {
+      db_field: m.db_field,
+      is_numeric: m.is_numeric || false,
+      multiplier: m.multiplier || 1,
+    });
+  }
+  return map;
+}
+
 function normalizeHeader(h: string): string {
   return h.toLowerCase().replace(/['"]/g, "").replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
 }
 
-function parseCSV(csvText: string): CompanyRow[] {
+function fallbackMapping(headers: string[]): Map<string, { db_field: string; is_numeric: boolean; multiplier: number }> {
+  const map = new Map();
+  const fieldAliases: Record<string, string[]> = {
+    company_name: ["company_name", "company", "name", "business_name", "trading_name", "entity_name"],
+    geography: ["geography", "location", "region", "city", "county", "town", "postcode", "country", "state"],
+    industry: ["industry", "sector", "sic_description", "sic_text", "sic", "business_type", "trade_classification"],
+    description_of_activities: ["description_of_activities", "description", "activities", "business_description", "overview"],
+    companies_house_number: ["companies_house_number", "company_number", "ch_number", "registration_number", "crn"],
+    website: ["website", "url", "web", "web_address"],
+    address: ["address", "registered_address", "office_address", "full_address"],
+    revenue: ["revenue", "turnover", "sales", "annual_revenue", "operating_revenue_turnover"],
+    profit_before_tax: ["profit_before_tax", "pbt", "profit", "operating_profit", "pre_tax_profit", "ebitda"],
+    net_assets: ["net_assets", "net_asset_value", "nav", "shareholders_funds", "equity"],
+    total_assets: ["total_assets", "assets", "total_asset_value", "gross_assets"],
+    revenue_band: ["revenue_band"],
+    asset_band: ["asset_band"],
+    status: ["status"],
+  };
+  const numericFields = new Set(["revenue", "profit_before_tax", "net_assets", "total_assets"]);
+
+  for (const h of headers) {
+    const norm = normalizeHeader(h);
+    for (const [dbField, aliases] of Object.entries(fieldAliases)) {
+      if (aliases.includes(norm)) {
+        map.set(h, { db_field: dbField, is_numeric: numericFields.has(dbField), multiplier: 1 });
+        break;
+      }
+    }
+  }
+  return map;
+}
+
+interface CompanyRow {
+  company_name: string;
+  [key: string]: unknown;
+}
+
+function parseCSVWithMapping(
+  csvText: string,
+  mapping: Map<string, { db_field: string; is_numeric: boolean; multiplier: number }>
+): CompanyRow[] {
   const lines = csvText.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
 
-  const headers = parseCSVLine(lines[0]).map(normalizeHeader);
-  console.log("Detected headers:", headers.slice(0, 10));
-
+  const headers = parseCSVLine(lines[0]);
   const companies: CompanyRow[] = [];
+
+  const parseNumeric = (value: string, multiplier: number): number | undefined => {
+    if (!value) return undefined;
+    const cleaned = value.replace(/[£$,\s%]/g, "");
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? undefined : num * multiplier;
+  };
 
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
     if (values.length === 0 || (values.length === 1 && !values[0])) continue;
 
-    const row: Record<string, string> = {};
+    const company: Record<string, unknown> = {};
+
     headers.forEach((header, idx) => {
-      row[header] = values[idx] || "";
-    });
+      const info = mapping.get(header);
+      if (!info) return;
+      const rawValue = values[idx] || "";
+      if (!rawValue) return;
 
-    const parseNumeric = (value: string | undefined): number | undefined => {
-      if (!value) return undefined;
-      const cleaned = value.replace(/[£$,\s]/g, "");
-      const num = parseFloat(cleaned);
-      return isNaN(num) ? undefined : num;
-    };
-
-    const get = (...keys: string[]): string | undefined => {
-      for (const k of keys) {
-        if (row[k]) return row[k];
-      }
-      return undefined;
-    };
-
-    const getNum = (...keys: string[]): number | undefined => {
-      for (const k of keys) {
-        if (row[k]) {
-          const v = parseNumeric(row[k]);
-          if (v !== undefined) return v;
+      if (info.is_numeric) {
+        const num = parseNumeric(rawValue, info.multiplier);
+        if (num !== undefined) company[info.db_field] = num;
+      } else {
+        if (!company[info.db_field]) {
+          company[info.db_field] = rawValue;
         }
       }
-      return undefined;
-    };
-
-    const company: CompanyRow = {
-      company_name: get("company_name", "company", "name", "business_name", "trading_name",
-        "company_name_latin_alphabet", "company_name_local_alphabet", "entity_name") || "",
-      geography: get(
-        "geography", "location", "region", "city", "county", "town",
-        "postcode", "registered_office", "country", "country_iso_code",
-        "state", "province", "country_name"
-      ),
-      industry: get(
-        "industry", "sector", "sic_description", "sic_text", "sic",
-        "sic_code", "trade", "activity", "business_type", "trade_classification",
-        "principal_activity", "nature_of_business", "nace_rev_2_main_section",
-        "nace_rev_2_core_code_4_digits", "nace_rev_2_description",
-        "bvd_major_sector", "nace_rev_2_secondary_code"
-      ),
-      description_of_activities: get(
-        "description_of_activities", "description", "activities",
-        "business_description", "trading_activities",
-        "trade_description_english", "trade_description_original_language",
-        "overview", "products_services"
-      ),
-      companies_house_number: get(
-        "companies_house_number", "company_number", "ch_number",
-        "registration_number", "crn", "company_registration_number",
-        "bvd_id_number", "national_id"
-      ),
-      website: get("website", "url", "web", "web_address", "website_address"),
-      address: get("address", "registered_address", "office_address", "full_address",
-        "address_line_1", "city_internat", "postcode"
-      ),
-      revenue: getNum(
-        "revenue", "turnover", "sales", "turnover_gbp",
-        "annual_revenue", "latest_turnover", "annual_turnover",
-        "operating_revenue_turnover", "operating_revenue_turnover_th_usd",
-        "operating_revenue_turnover_th_eur", "operating_revenue_turnover_th_gbp"
-      ),
-      profit_before_tax: getNum(
-        "profit_before_tax", "pbt", "profit", "operating_profit",
-        "net_profit", "profit_gbp", "pre_tax_profit",
-        "p_l_before_tax", "p_l_before_tax_th_usd", "profit_loss_before_tax",
-        "ebitda", "ebitda_th_usd"
-      ),
-      net_assets: getNum(
-        "net_assets", "net_asset_value", "nav",
-        "shareholders_funds", "equity", "net_worth",
-        "shareholders_funds_th_usd", "shareholders_funds_th_eur"
-      ),
-      total_assets: getNum(
-        "total_assets", "assets", "total_asset_value",
-        "fixed_assets", "gross_assets",
-        "total_assets_th_usd", "total_assets_th_eur", "total_assets_th_gbp"
-      ),
-      revenue_band: get("revenue_band"),
-      asset_band: get("asset_band"),
-      status: get("status") || "new",
-    };
+    });
 
     if (company.company_name) {
-      companies.push(company);
+      if (!company.status) company.status = "new";
+      companies.push(company as CompanyRow);
     }
   }
 
-  console.log(`Parsed ${companies.length} companies from CSV`);
+  console.log(`Parsed ${companies.length} companies using AI mapping`);
   return companies;
 }
 
@@ -180,20 +187,20 @@ async function insertInBatches(
     const batch = companies.slice(i, i + BATCH_SIZE);
     const rows = batch.map((c) => ({
       mandate_id: mandateId,
-      company_name: c.company_name,
-      geography: c.geography || null,
-      industry: c.industry || null,
-      description_of_activities: c.description_of_activities || null,
-      companies_house_number: c.companies_house_number || null,
-      website: c.website || null,
-      address: c.address || null,
-      revenue: c.revenue || null,
-      profit_before_tax: c.profit_before_tax || null,
-      net_assets: c.net_assets || null,
-      total_assets: c.total_assets || null,
-      revenue_band: c.revenue_band || null,
-      asset_band: c.asset_band || null,
-      status: c.status || "new",
+      company_name: c.company_name as string,
+      geography: (c.geography as string) || null,
+      industry: (c.industry as string) || null,
+      description_of_activities: (c.description_of_activities as string) || null,
+      companies_house_number: (c.companies_house_number as string) || null,
+      website: (c.website as string) || null,
+      address: (c.address as string) || null,
+      revenue: (c.revenue as number) || null,
+      profit_before_tax: (c.profit_before_tax as number) || null,
+      net_assets: (c.net_assets as number) || null,
+      total_assets: (c.total_assets as number) || null,
+      revenue_band: (c.revenue_band as string) || null,
+      asset_band: (c.asset_band as string) || null,
+      status: (c.status as string) || "new",
     }));
 
     const { data, error } = await supabase
@@ -212,19 +219,70 @@ async function insertInBatches(
   return totalInserted;
 }
 
+async function storeCSV(
+  supabase: ReturnType<typeof createClient>,
+  mandateId: string,
+  csvContent: string,
+  fileName: string
+) {
+  try {
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const path = `${mandateId}/${fileName}`;
+    await supabase.storage.from("mandate-uploads").upload(path, blob, {
+      contentType: "text/csv",
+      upsert: true,
+    });
+    console.log(`Stored CSV at mandate-uploads/${path}`);
+  } catch (e) {
+    console.error("Failed to store CSV:", e);
+  }
+}
+
 async function processInBackground(
   authHeader: string,
   mandateId: string,
   csvContent: string
 ) {
   try {
-    // Use service role for background work since the original auth context may expire
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const companies = parseCSV(csvContent);
+    // Store CSV for future re-analysis
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    await storeCSV(supabase, mandateId, csvContent, `upload-${timestamp}.csv`);
+
+    // Extract headers and sample rows for AI
+    const lines = csvContent.trim().split(/\r?\n/);
+    const headers = parseCSVLine(lines[0]);
+    const sampleRows: Record<string, string>[] = [];
+    for (let i = 1; i < Math.min(6, lines.length); i++) {
+      const values = parseCSVLine(lines[i]);
+      const row: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        row[h] = values[idx] || "";
+      });
+      sampleRows.push(row);
+    }
+
+    // Try AI mapping first, fall back to hardcoded
+    let mapping: Map<string, { db_field: string; is_numeric: boolean; multiplier: number }>;
+    try {
+      const aiMappings = await getAIMappings(headers, sampleRows);
+      if (aiMappings.length > 0) {
+        mapping = buildMappingFromAI(aiMappings);
+        console.log(`Using AI mapping with ${mapping.size} fields`);
+      } else {
+        mapping = fallbackMapping(headers);
+        console.log(`Using fallback mapping with ${mapping.size} fields`);
+      }
+    } catch (e) {
+      console.warn("AI mapping error, using fallback:", e);
+      mapping = fallbackMapping(headers);
+    }
+
+    const companies = parseCSVWithMapping(csvContent, mapping);
     console.log(`Background: parsed ${companies.length} companies`);
 
     if (companies.length === 0) {
@@ -336,16 +394,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Quick row count estimate for the response
     const lineCount = csv_content.split("\n").length - 1;
 
-    // Kick off background processing so we don't hit CPU time limits
     EdgeRuntime.waitUntil(processInBackground(authHeader, mandate_id, csv_content));
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Processing ~${lineCount} companies in the background. They will appear shortly.`,
+        message: `Processing ~${lineCount} companies with AI-powered field mapping. They will appear shortly.`,
         mandate_name: mandate.name,
         estimated_companies: lineCount,
       }),
