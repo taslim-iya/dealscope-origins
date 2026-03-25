@@ -193,7 +193,7 @@ export default function AdminCompanies() {
         .from("companies")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(100000);
+        .limit(1000000);
 
       if (companiesData && mandatesData) {
         // Map mandates to companies
