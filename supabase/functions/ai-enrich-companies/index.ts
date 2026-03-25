@@ -65,21 +65,29 @@ Deno.serve(async (req) => {
     );
 
     // Check if there's a stored CSV in mandate-uploads
-    const { data: files } = await serviceSupabase.storage
+    const { data: files, error: listError } = await serviceSupabase.storage
       .from("mandate-uploads")
-      .list(mandate_id, { limit: 10 });
+      .list(mandate_id, { limit: 100 });
 
-    if (!files || files.length === 0) {
+    console.log("Storage list result:", JSON.stringify({ files: files?.map(f => f.name), listError }));
+
+    // Filter out placeholder files
+    const csvFiles = (files || []).filter(f => 
+      f.name && !f.name.startsWith(".") && (f.name.endsWith(".csv") || f.name.endsWith(".xlsx") || f.name.endsWith(".xls"))
+    );
+
+    if (csvFiles.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No uploaded files found for this mandate. Please upload a file first." }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "No uploaded files found for this mandate. Please re-upload a CSV file — previous uploads before AI mapping was enabled are not stored." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Get the most recent file
-    const latestFile = files.sort((a, b) =>
+    const latestFile = csvFiles.sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
+    console.log("Using file:", latestFile.name);
 
     const { data: fileData, error: downloadError } = await serviceSupabase.storage
       .from("mandate-uploads")
