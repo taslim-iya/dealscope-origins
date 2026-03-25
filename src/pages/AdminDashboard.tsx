@@ -214,12 +214,14 @@ export default function AdminDashboard() {
 
       setUploadResult({
         success: true,
-        message: `Successfully added ${data.companies_added} companies to "${data.mandate_name}"`,
+        message: data.message || `Processing ~${data.estimated_companies} companies in background`,
       });
+      setEstimatedCompanies(data.estimated_companies || 0);
+      setBgProcessing(true);
 
       toast({
-        title: "Upload successful",
-        description: `Added ${data.companies_added} companies`,
+        title: "Upload started",
+        description: data.message,
       });
 
       // Refresh mandates

@@ -243,19 +243,18 @@ export default function AdminMandateView() {
 
       setUploadResult({
         success: true,
-        message: `Successfully added ${data.companies_added} companies`,
+        message: data.message || `Processing ~${data.estimated_companies} companies in background`,
       });
+      setEstimatedCompanies(data.estimated_companies || 0);
+      setBgProcessing(true);
 
       toast({
-        title: "Upload successful",
-        description: `Added ${data.companies_added} companies`,
+        title: "Upload started",
+        description: data.message,
       });
 
       // Trigger AI analysis in background
       analyzeWithAI(text);
-
-      // Refresh data
-      fetchData();
     } catch (error) {
       console.error("Upload error:", error);
       setUploadResult({
