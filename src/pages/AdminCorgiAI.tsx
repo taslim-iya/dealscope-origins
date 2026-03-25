@@ -215,6 +215,30 @@ export default function AdminCorgiAI() {
     }
   };
 
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "Company Name",
+      "Industry",
+      "Description of Activities",
+      "Geography",
+      "Revenue",
+      "Profit Before Tax",
+      "Total Assets",
+      "Net Assets",
+      "Number of Employees",
+      "Website",
+      "Companies House Number",
+      "Address",
+    ];
+    const csvContent = headers.map((h) => `"${h}"`).join(",") + "\n";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Company_Upload_Template.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     console.log("[Upload] file:", file?.name, "mandateId:", mandateId);
@@ -531,6 +555,10 @@ export default function AdminCorgiAI() {
                     className="max-w-md"
                   />
                   {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="gap-2 shrink-0">
+                    <Download className="h-4 w-4" />
+                    Download Template
+                  </Button>
                 </div>
                 {uploadResult && !bgProcessing && (
                   <div className={`flex items-center gap-2 p-3 rounded-lg ${uploadResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
