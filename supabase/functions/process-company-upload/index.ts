@@ -193,9 +193,9 @@ const BATCH_SIZE = 500;
 const VALIDATION_BATCH_SIZE = 100;
 
 async function validateCompanyNames(companies: CompanyRow[]): Promise<CompanyRow[]> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    console.warn("LOVABLE_API_KEY not set, skipping AI validation");
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  if (!GEMINI_API_KEY) {
+    console.warn("GEMINI_API_KEY not set, skipping AI validation");
     return companies;
   }
 
@@ -206,14 +206,14 @@ async function validateCompanyNames(companies: CompanyRow[]): Promise<CompanyRow
     const names = batch.map((c, idx) => `${idx}: ${c.company_name}`).join("\n");
 
     try {
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          Authorization: `Bearer ${GEMINI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "gemini-2.0-flash",
           messages: [
             {
               role: "system",

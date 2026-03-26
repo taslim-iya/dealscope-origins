@@ -53,14 +53,14 @@ async function extractDealsFromResults(
   if (content.length < 200) return [];
 
   try {
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${lovableApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gemini-2.5-flash",
         messages: [
           {
             role: "user",
@@ -113,7 +113,7 @@ serve(async (req) => {
     const userId = null;
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
     if (!FIRECRAWL_API_KEY) {
       return new Response(
@@ -169,7 +169,7 @@ serve(async (req) => {
         if (searchResults.length === 0) continue;
 
         // Extract deals using AI
-        const deals = await extractDealsFromResults(searchResults, LOVABLE_API_KEY!);
+        const deals = await extractDealsFromResults(searchResults, GEMINI_API_KEY!);
         console.log(`Extracted ${deals.length} deals from ${sourceName}`);
 
         // Save each deal immediately (incremental saving)

@@ -97,14 +97,14 @@ async function enrichCompaniesViaWeb(
   companies: CompanyToEnrich[]
 ) {
   const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
   if (!FIRECRAWL_API_KEY) {
     console.error("FIRECRAWL_API_KEY not configured");
     return;
   }
-  if (!LOVABLE_API_KEY) {
-    console.error("LOVABLE_API_KEY not configured");
+  if (!GEMINI_API_KEY) {
+    console.error("GEMINI_API_KEY not configured");
     return;
   }
 
@@ -117,7 +117,7 @@ async function enrichCompaniesViaWeb(
     await Promise.all(
       batch.map(async (company) => {
         try {
-          const updated = await enrichSingleCompany(supabase, company, FIRECRAWL_API_KEY, LOVABLE_API_KEY);
+          const updated = await enrichSingleCompany(supabase, company, FIRECRAWL_API_KEY, GEMINI_API_KEY);
           if (updated) enriched++;
         } catch (e) {
           console.error(`Failed to enrich ${company.company_name}:`, e);
@@ -193,14 +193,14 @@ async function enrichSingleCompany(
     .substring(0, 5000);
 
   // Use AI to extract structured info
-  const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const aiResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${lovableKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: "gemini-2.0-flash-lite",
       messages: [
         {
           role: "system",
