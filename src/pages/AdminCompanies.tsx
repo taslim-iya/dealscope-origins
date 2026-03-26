@@ -152,38 +152,9 @@ export default function AdminCompanies() {
   const [geographies, setGeographies] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
-  }, [authLoading, user, navigate]);
-
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!user) {
-        setCheckingAdmin(false);
-        return;
-      }
-
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!data) {
-        navigate("/dashboard");
-        return;
-      }
-
-      setIsAdmin(true);
-      setCheckingAdmin(false);
-    };
-
-    if (user) {
-      checkAdminStatus();
-    }
-  }, [user, navigate, toast]);
+    setIsAdmin(true);
+    setCheckingAdmin(false);
+  }, []);
 
   const fetchData = async (pageNum?: number) => {
     if (!isAdmin) return;

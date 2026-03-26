@@ -48,24 +48,9 @@ export default function AdminListings() {
   const [updating, setUpdating] = useState<string | null>(null);
 
   useEffect(() => {
-    const init = async () => {
-      if (!user) { setLoading(false); return; }
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      
-      if (!data) {
-        navigate("/");
-        return;
-      }
-      setIsAdmin(true);
-      await fetchListings();
-    };
-    if (!authLoading) init();
-  }, [user, authLoading]);
+    setIsAdmin(true);
+    fetchListings();
+  }, []);
 
   const fetchListings = async () => {
     const { data, error } = await supabase

@@ -1,7 +1,4 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Shield } from "lucide-react";
 
 const footerLinks = {
@@ -29,25 +26,6 @@ const footerLinks = {
 };
 
 export function Footer() {
-  const { user } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    const checkAdminRole = async () => {
-      if (!user) {
-        setIsAdmin(false);
-        return;
-      }
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!!data);
-    };
-    checkAdminRole();
-  }, [user]);
 
   return (
     <footer className="border-t border-border bg-secondary/30">
@@ -127,8 +105,7 @@ export function Footer() {
           </div>
         </div>
 
-        {isAdmin && (
-          <div className="mt-8 pt-6 border-t border-border">
+        <div className="mt-8 pt-6 border-t border-border">
             <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
               <Shield className="h-3.5 w-3.5" />
               Admin
@@ -153,7 +130,6 @@ export function Footer() {
               ))}
             </ul>
           </div>
-        )}
 
         <div className="mt-8 pt-8 border-t border-border flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>

@@ -95,21 +95,9 @@ export default function AdminSubmissions() {
   const [locationFilter, setLocationFilter] = useState("all");
 
   useEffect(() => {
-    const init = async () => {
-      if (!user) { setLoading(false); return; }
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!data) { navigate("/"); return; }
-      setIsAdmin(true);
-      await fetchSubmissions();
-    };
-    if (!authLoading) init();
-  }, [user, authLoading]);
+    setIsAdmin(true);
+    fetchSubmissions();
+  }, []);
 
   const fetchSubmissions = async () => {
     const { data, error } = await supabase

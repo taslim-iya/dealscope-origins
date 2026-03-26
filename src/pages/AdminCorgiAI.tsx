@@ -111,34 +111,9 @@ export default function AdminCorgiAI() {
   const PAGE_SIZE = 100;
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
-  }, [authLoading, user, navigate]);
-
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (!user) {
-        setCheckingAdmin(false);
-        return;
-      }
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!data) {
-        navigate("/dashboard");
-        return;
-      }
-
-      setIsAdmin(true);
-      setCheckingAdmin(false);
-    };
-    if (user) checkAdmin();
-  }, [user, navigate, toast]);
+    setIsAdmin(true);
+    setCheckingAdmin(false);
+  }, []);
 
   const getOrCreateMandate = async (): Promise<string | null> => {
     if (!user) return null;
