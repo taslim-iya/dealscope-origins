@@ -130,11 +130,7 @@ export default function MandateWorkspace() {
     });
   };
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
-  }, [authLoading, user, navigate]);
+  // Auth guard removed — allow unauthenticated access
 
   useEffect(() => {
     const fetchData = async () => {
@@ -283,14 +279,14 @@ export default function MandateWorkspace() {
     );
   }
 
-  if (!user || !mandate) {
+  if (!mandate) {
     return null;
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <DashboardHeader 
-        email={profile?.email || user.email} 
+        email={profile?.email || user?.email || ""} 
         onSignOut={handleSignOut} 
       />
 

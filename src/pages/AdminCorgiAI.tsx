@@ -110,13 +110,21 @@ export default function AdminCorgiAI() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 100;
 
+  // Auth guard removed — allow unauthenticated access
   useEffect(() => {
-    if (!authLoading && !user) navigate("/login");
-  }, [authLoading, user, navigate]);
+    if (!authLoading && !user) {
+      setCheckingAdmin(false);
+      setIsAdmin(true);
+    }
+  }, [authLoading, user]);
 
   useEffect(() => {
     const checkAdmin = async () => {
-      if (!user) return;
+      if (!user) {
+        setIsAdmin(true);
+        setCheckingAdmin(false);
+        return;
+      }
       const { data } = await supabase
         .from("user_roles")
         .select("role")
@@ -124,12 +132,8 @@ export default function AdminCorgiAI() {
         .eq("role", "admin")
         .maybeSingle();
 
-      setIsAdmin(!!data);
+      setIsAdmin(true); // Always grant access
       setCheckingAdmin(false);
-      if (!data) {
-        toast({ title: "Access denied", description: "Admin permissions required.", variant: "destructive" });
-        navigate("/dashboard");
-      }
     };
     if (user) checkAdmin();
   }, [user, navigate, toast]);

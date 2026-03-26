@@ -106,11 +106,7 @@ export default function CompanyDetails() {
   const [saving, setSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
-  }, [authLoading, user, navigate]);
+  // Auth guard removed — allow unauthenticated access
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -265,7 +261,7 @@ export default function CompanyDetails() {
     );
   }
 
-  if (!user || !company) {
+  if (!company) {
     return null;
   }
 
@@ -279,7 +275,7 @@ export default function CompanyDetails() {
           </Link>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:block">
-              {profile?.email || user.email}
+              {profile?.email || user?.email}
             </span>
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />

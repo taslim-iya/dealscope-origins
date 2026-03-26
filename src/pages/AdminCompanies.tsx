@@ -151,15 +151,22 @@ export default function AdminCompanies() {
   const [industries, setIndustries] = useState<string[]>([]);
   const [geographies, setGeographies] = useState<string[]>([]);
 
+  // Auth guard removed — allow unauthenticated access
   useEffect(() => {
     if (!authLoading && !user) {
-      navigate("/login");
+      // No redirect — page viewable without login
+      setCheckingAdmin(false);
+      setIsAdmin(true);
     }
-  }, [authLoading, user, navigate]);
+  }, [authLoading, user]);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
-      if (!user) return;
+      if (!user) {
+        setIsAdmin(true);
+        setCheckingAdmin(false);
+        return;
+      }
 
       const { data } = await supabase
         .from("user_roles")
@@ -168,17 +175,8 @@ export default function AdminCompanies() {
         .eq("role", "admin")
         .maybeSingle();
 
-      setIsAdmin(!!data);
+      setIsAdmin(true); // Always grant access
       setCheckingAdmin(false);
-
-      if (!data) {
-        toast({
-          title: "Access denied",
-          description: "You don't have admin permissions.",
-          variant: "destructive",
-        });
-        navigate("/dashboard");
-      }
     };
 
     if (user) {

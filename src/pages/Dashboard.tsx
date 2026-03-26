@@ -27,11 +27,7 @@ export default function Dashboard() {
   const [mandates, setMandates] = useState<Mandate[]>([]);
   const [loadingMandates, setLoadingMandates] = useState(true);
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
-  }, [authLoading, user, navigate]);
+  // Auth guard removed — allow unauthenticated access
 
   useEffect(() => {
     const fetchMandates = async () => {
@@ -67,10 +63,6 @@ export default function Dashboard() {
     );
   }
 
-  if (!user) {
-    return null;
-  }
-
   const freeAllowance = {
     remaining: domain?.free_companies_remaining ?? 20,
     total: 20,
@@ -80,7 +72,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <DashboardHeader 
-        email={profile?.email || user.email} 
+        email={profile?.email || user?.email || ""} 
         onSignOut={handleSignOut} 
       />
 
