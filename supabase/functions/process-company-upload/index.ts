@@ -430,7 +430,6 @@ async function storeCSV(
 }
 
 async function processInBackground(
-  authHeader: string,
   mandateId: string,
   csvContent: string
 ) {
@@ -557,42 +556,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check admin
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    if (!roleData) {
-      return new Response(
-        JSON.stringify({ error: "Admin access required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     const { mandate_id, csv_content } = await req.json();
 
@@ -619,7 +586,7 @@ Deno.serve(async (req) => {
 
     const lineCount = csv_content.split("\n").length - 1;
 
-    EdgeRuntime.waitUntil(processInBackground(authHeader, mandate_id, csv_content));
+    EdgeRuntime.waitUntil(processInBackground(mandate_id, csv_content));
 
     return new Response(
       JSON.stringify({
