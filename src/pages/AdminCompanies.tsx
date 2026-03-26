@@ -151,19 +151,15 @@ export default function AdminCompanies() {
   const [industries, setIndustries] = useState<string[]>([]);
   const [geographies, setGeographies] = useState<string[]>([]);
 
-  // Auth guard removed — allow unauthenticated access
   useEffect(() => {
     if (!authLoading && !user) {
-      // No redirect — page viewable without login
-      setCheckingAdmin(false);
-      setIsAdmin(true);
+      navigate("/login");
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, navigate]);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (!user) {
-        setIsAdmin(true);
         setCheckingAdmin(false);
         return;
       }
@@ -175,7 +171,12 @@ export default function AdminCompanies() {
         .eq("role", "admin")
         .maybeSingle();
 
-      setIsAdmin(true); // Always grant access
+      if (!data) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setIsAdmin(true);
       setCheckingAdmin(false);
     };
 

@@ -92,6 +92,12 @@ export default function MandateWorkspace() {
 
   const isPaidUser = profile?.is_paid ?? false;
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [authLoading, user, navigate]);
+
   const handleExportCSV = () => {
     if (!isPaidUser) {
       toast({
@@ -129,8 +135,6 @@ export default function MandateWorkspace() {
       description: `Exported ${filteredAndSortedCompanies.length} companies to CSV.`,
     });
   };
-
-  // Auth guard removed — allow unauthenticated access
 
   useEffect(() => {
     const fetchData = async () => {

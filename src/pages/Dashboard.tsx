@@ -27,7 +27,11 @@ export default function Dashboard() {
   const [mandates, setMandates] = useState<Mandate[]>([]);
   const [loadingMandates, setLoadingMandates] = useState(true);
 
-  // Auth guard removed — allow unauthenticated access
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [authLoading, user, navigate]);
 
   useEffect(() => {
     const fetchMandates = async () => {

@@ -131,18 +131,15 @@ export default function AdminMandateView() {
   const [lastCsvContent, setLastCsvContent] = useState<string | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
 
-  // Auth guard removed — allow unauthenticated access
   useEffect(() => {
     if (!authLoading && !user) {
-      setCheckingAdmin(false);
-      setIsAdmin(true);
+      navigate("/login");
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, navigate]);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (!user) {
-        setIsAdmin(true);
         setCheckingAdmin(false);
         return;
       }
@@ -154,7 +151,12 @@ export default function AdminMandateView() {
         .eq("role", "admin")
         .maybeSingle();
 
-      setIsAdmin(true); // Always grant access
+      if (!data) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setIsAdmin(true);
       setCheckingAdmin(false);
     };
 

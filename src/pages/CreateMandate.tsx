@@ -38,7 +38,11 @@ export default function CreateMandate() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auth guard removed — allow unauthenticated access
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [authLoading, user, navigate]);
 
   const updateFormData = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

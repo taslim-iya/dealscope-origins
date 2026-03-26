@@ -106,8 +106,6 @@ export default function CompanyDetails() {
   const [saving, setSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Auth guard removed — allow unauthenticated access
-
   useEffect(() => {
     const checkAdmin = async () => {
       if (!user) return;

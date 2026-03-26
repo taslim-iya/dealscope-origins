@@ -110,18 +110,15 @@ export default function AdminCorgiAI() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 100;
 
-  // Auth guard removed — allow unauthenticated access
   useEffect(() => {
     if (!authLoading && !user) {
-      setCheckingAdmin(false);
-      setIsAdmin(true);
+      navigate("/login");
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, navigate]);
 
   useEffect(() => {
     const checkAdmin = async () => {
       if (!user) {
-        setIsAdmin(true);
         setCheckingAdmin(false);
         return;
       }
@@ -132,7 +129,12 @@ export default function AdminCorgiAI() {
         .eq("role", "admin")
         .maybeSingle();
 
-      setIsAdmin(true); // Always grant access
+      if (!data) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setIsAdmin(true);
       setCheckingAdmin(false);
     };
     if (user) checkAdmin();

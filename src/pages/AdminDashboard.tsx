@@ -84,18 +84,15 @@ export default function AdminDashboard() {
   const [allUsers, setAllUsers] = useState<UserWithRole[]>([]);
   const [loadingRoleChange, setLoadingRoleChange] = useState<string | null>(null);
 
-  // Auth guard removed — allow unauthenticated access
   useEffect(() => {
     if (!authLoading && !user) {
-      setCheckingAdmin(false);
-      setIsAdmin(true);
+      navigate("/login");
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, navigate]);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
       if (!user) {
-        setIsAdmin(true);
         setCheckingAdmin(false);
         return;
       }
@@ -107,7 +104,12 @@ export default function AdminDashboard() {
         .eq("role", "admin")
         .maybeSingle();
 
-      setIsAdmin(true); // Always grant access
+      if (!data) {
+        navigate("/dashboard");
+        return;
+      }
+
+      setIsAdmin(true);
       setCheckingAdmin(false);
     };
 
