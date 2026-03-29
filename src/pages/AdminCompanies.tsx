@@ -57,6 +57,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import {
   getLocalCompanies,
   addLocalCompanies,
@@ -302,35 +303,88 @@ export default function AdminCompanies() {
 
   const handleCsvUpload = async () => {
     if (!csvFile) {
-      toast({ title: "Missing file", description: "Please select a CSV file.", variant: "destructive" });
+      toast({ title: "Missing file", description: "Please select a CSV or XLSX file.", variant: "destructive" });
       return;
     }
     setUploading(true);
     try {
-      const csvContent = await csvFile.text();
-      const parsed = Papa.parse<Record<string, string>>(csvContent, { header: true, skipEmptyLines: true });
+      let rows: Record<string, string>[] = [];
+      const isExcel = csvFile.name.endsWith(".xlsx") || csvFile.name.endsWith(".xls");
 
-      if (parsed.errors.length > 0) {
-        console.warn("CSV parse warnings:", parsed.errors);
+      if (isExcel) {
+        // Parse XLSX
+        const arrayBuffer = await csvFile.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+
+        // Convert sheet to JSON — auto-detect header row
+        // First try with header row 1 (0-indexed), if first row has merged headers, try row 2
+        let jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
+
+        // Check if first row looks like a category header (e.g. "COMPANY INFORMATION")
+        // If the first row has very few non-empty values or values like "COMPANY INFORMATION", skip it
+        if (jsonData.length > 0) {
+          const firstRowKeys = Object.keys(jsonData[0]);
+          const firstRowVals = Object.values(jsonData[0]).filter(v => v && String(v).trim());
+          const hasCompanyName = firstRowKeys.some(k =>
+            k.toLowerCase().replace(/[_\s\-()\/]+/g, "").includes("companyname") ||
+            k.toLowerCase().replace(/[_\s\-()\/]+/g, "").includes("company")
+          );
+
+          // If first data row doesn't have recognisable headers, re-parse with header on row 2
+          if (!hasCompanyName && firstRowVals.length < 3) {
+            jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "", header: 1 } as any);
+            // Use second element as headers
+            if (jsonData.length >= 2) {
+              const headers = Object.values(jsonData[0]).map(h => String(h).trim());
+              const dataRows = jsonData.slice(1);
+              jsonData = dataRows.map(row => {
+                const obj: Record<string, string> = {};
+                const vals = Object.values(row);
+                headers.forEach((h, i) => { if (h) obj[h] = String(vals[i] || ""); });
+                return obj;
+              });
+            }
+          }
+        }
+
+        rows = jsonData;
+      } else {
+        // Parse CSV
+        const csvContent = await csvFile.text();
+        const parsed = Papa.parse<Record<string, string>>(csvContent, { header: true, skipEmptyLines: true });
+        if (parsed.errors.length > 0) {
+          console.warn("CSV parse warnings:", parsed.errors);
+        }
+        rows = parsed.data;
       }
 
-      const rows = parsed.data;
       if (rows.length === 0) {
-        toast({ title: "Empty CSV", description: "No data rows found in the file.", variant: "destructive" });
+        toast({ title: "Empty file", description: "No data rows found in the file.", variant: "destructive" });
         setUploading(false);
         return;
       }
 
       setUploadEstimate(rows.length);
 
-      // Parse into company objects and save locally
+      // Parse into company objects and save locally — process in chunks for large files
       const mandateId = uploadMandateId || "general";
-      const companyRows = parseCsvToCompanies(rows, mandateId);
-      addLocalCompanies(companyRows);
+      const CHUNK_SIZE = 5000;
+      let totalAdded = 0;
+
+      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + CHUNK_SIZE);
+        const companyRows = parseCsvToCompanies(chunk, mandateId);
+        if (companyRows.length > 0) {
+          addLocalCompanies(companyRows);
+          totalAdded += companyRows.length;
+        }
+      }
 
       toast({
         title: "Upload complete",
-        description: `${companyRows.length} companies added from ${csvFile.name}.`,
+        description: `${totalAdded.toLocaleString()} companies added from ${csvFile.name}.`,
       });
 
       // Re-fetch to merge local + Supabase companies properly
@@ -738,11 +792,11 @@ export default function AdminCompanies() {
                     </h3>
                     <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
                       <div className="flex-1 w-full">
-                        <label className="text-xs text-muted-foreground mb-1 block">Select a .csv file</label>
+                        <label className="text-xs text-muted-foreground mb-1 block">Select a .csv or .xlsx file</label>
                         <Input
                           ref={fileInputRef}
                           type="file"
-                          accept=".csv"
+                          accept=".csv,.xlsx,.xls"
                           onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
                           className="w-full max-w-md"
                         />

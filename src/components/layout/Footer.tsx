@@ -26,7 +26,6 @@ const footerLinks = {
 };
 
 export function Footer() {
-
   return (
     <footer className="border-t border-border bg-secondary/30">
       <div className="container-wide py-12 md:py-16">
@@ -105,6 +104,7 @@ export function Footer() {
           </div>
         </div>
 
+        {/* Admin links — always visible in footer */}
         <div className="mt-8 pt-6 border-t border-border">
             <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-1.5">
               <Shield className="h-3.5 w-3.5" />
