@@ -61,6 +61,7 @@ import * as XLSX from "xlsx";
 import {
   getLocalCompanies,
   getLocalCompanyCount,
+  getLocalCompaniesPage,
   addLocalCompanies,
   deleteLocalCompany as deleteLocalComp,
   deleteLocalCompanies as deleteLocalComps,
@@ -192,15 +193,40 @@ export default function AdminCompanies() {
     if (!isAdmin) return;
     setLoading(true);
 
-    // Try Supabase first, fall back to local storage
-    let supabaseWorked = false;
-
+    // FAST PATH: Load local IndexedDB data FIRST (instant, no network)
     try {
-      // Fetch all mandates with client info
+      const localCount = await getLocalCompanyCount();
+      if (localCount > 0) {
+        // Load only the current page from IndexedDB (not all 87K)
+        const p = pageNum ?? page;
+        const localPage = await getLocalCompaniesPage(p * PAGE_SIZE, PAGE_SIZE);
+        setCompanies(localPage.map(c => ({ ...c, mandate: undefined })));
+        setTotalCount(localCount);
+
+        // Build filter options from first batch
+        const allLocal = await getLocalCompaniesPage(0, 10000); // sample for filters
+        const uniqueIndustries = [...new Set(allLocal.map((c) => c.industry).filter(Boolean))] as string[];
+        const uniqueGeographies = [...new Set(allLocal.map((c) => c.geography).filter(Boolean))] as string[];
+        setIndustries(uniqueIndustries.sort());
+        setGeographies(uniqueGeographies.sort());
+        setLoading(false);
+      }
+    } catch (err) {
+      console.log("IndexedDB error:", err);
+    }
+
+    // SLOW PATH: Try Supabase in background (3s timeout)
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+
       const { data: mandatesData } = await supabase
         .from("mandates")
         .select("id, name, status, user_id, created_at, industry_description, regions, revenue_min, revenue_max")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeout);
 
       if (mandatesData && mandatesData.length > 0) {
         const userIds = [...new Set(mandatesData.map((m) => m.user_id))];
@@ -219,56 +245,28 @@ export default function AdminCompanies() {
         setMandates(mandatesWithProfiles);
       }
 
-      // Get total count
-      const { count } = await supabase
-        .from("companies")
-        .select("*", { count: "exact", head: true });
-
-      // Fetch current page of companies
+      // Fetch Supabase companies and merge
       const p = pageNum ?? page;
       const from = p * PAGE_SIZE;
-      const { data: companiesData, error } = await supabase
+      const { data: companiesData, count } = await supabase
         .from("companies")
-        .select("*")
+        .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(from, from + PAGE_SIZE - 1);
 
-      if (!error && companiesData) {
-        supabaseWorked = true;
-
-        const mandateMap = new Map<string, Mandate>();
-        mandates.forEach((m) => mandateMap.set(m.id, m));
-
-        const companiesWithMandates = companiesData.map((c) => ({
-          ...c,
-          mandate: mandateMap.get(c.mandate_id),
-        }));
-
-        // Always merge in local companies
-        const localCompanies = await getLocalCompanies();
-        const allCompanies = [...companiesWithMandates, ...localCompanies.map(c => ({ ...c, mandate: undefined }))];
+      if (companiesData && companiesData.length > 0) {
+        const localPage = await getLocalCompaniesPage(0, PAGE_SIZE);
+        const localCount = await getLocalCompanyCount();
+        const allCompanies = [
+          ...companiesData.map(c => ({ ...c, mandate: undefined })),
+          ...localPage.map(c => ({ ...c, mandate: undefined })),
+        ];
         setCompanies(allCompanies);
-        setTotalCount((count || 0) + localCompanies.length);
-
-        const uniqueIndustries = [...new Set(allCompanies.map((c) => c.industry).filter(Boolean))] as string[];
-        const uniqueGeographies = [...new Set(allCompanies.map((c) => c.geography).filter(Boolean))] as string[];
-        setIndustries(uniqueIndustries.sort());
-        setGeographies(uniqueGeographies.sort());
+        setTotalCount((count || 0) + localCount);
       }
     } catch (err) {
-      console.log("Supabase unavailable, using local storage only");
-    }
-
-    // Fall back to local storage
-    if (!supabaseWorked) {
-      const localCompanies = await getLocalCompanies();
-      setCompanies(localCompanies.map(c => ({ ...c, mandate: undefined })));
-      setTotalCount(localCompanies.length);
-
-      const uniqueIndustries = [...new Set(localCompanies.map((c) => c.industry).filter(Boolean))] as string[];
-      const uniqueGeographies = [...new Set(localCompanies.map((c) => c.geography).filter(Boolean))] as string[];
-      setIndustries(uniqueIndustries.sort());
-      setGeographies(uniqueGeographies.sort());
+      // Supabase unavailable or timed out — local data already loaded above
+      console.log("Supabase unavailable, using local data only");
     }
 
     setLoading(false);
