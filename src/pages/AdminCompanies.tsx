@@ -107,6 +107,10 @@ interface Company {
   mandate_id: string;
   created_at: string;
   mandate?: Mandate;
+  employees?: string | null;
+  director_name?: string | null;
+  director_title?: string | null;
+  year_incorporated?: string | null;
 }
 
 const statusBadges: Record<string, string> = {
@@ -117,9 +121,17 @@ const statusBadges: Record<string, string> = {
 
 const formatCurrency = (value: number | null): string => {
   if (value === null) return "—";
-  if (value >= 1000000) return `£${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `£${(value / 1000).toFixed(0)}K`;
-  return `£${value.toFixed(0)}`;
+  if (value >= 1000000000) return `$${(value / 1000000000).toFixed(1)}B`;
+  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+  return `$${value.toFixed(0)}`;
+};
+
+const formatNumber = (value: string | number | null | undefined): string => {
+  if (value == null || value === "") return "—";
+  const num = typeof value === "number" ? value : parseInt(String(value).replace(/,/g, ""), 10);
+  if (isNaN(num)) return String(value);
+  return num.toLocaleString();
 };
 
 export default function AdminCompanies() {
@@ -139,6 +151,14 @@ export default function AdminCompanies() {
   const [geographyFilter, setGeographyFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [mandateFilter, setMandateFilter] = useState<string>("all");
+  const [revenueMin, setRevenueMin] = useState<string>("");
+  const [revenueMax, setRevenueMax] = useState<string>("");
+  const [employeesMin, setEmployeesMin] = useState<string>("");
+  const [employeesMax, setEmployeesMax] = useState<string>("");
+
+  // Sort
+  const [sortField, setSortField] = useState<string>("company_name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -449,20 +469,64 @@ export default function AdminCompanies() {
   };
 
   // Filter companies
-  const filteredCompanies = companies.filter((company) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      company.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.industry?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.geography?.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredCompanies = useMemo(() => {
+    const filtered = companies.filter((company) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        company.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        company.industry?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        company.geography?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        company.description_of_activities?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        company.director_name?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesIndustry = industryFilter === "all" || company.industry === industryFilter;
-    const matchesGeography = geographyFilter === "all" || company.geography === geographyFilter;
-    const matchesStatus = statusFilter === "all" || company.status === statusFilter;
-    const matchesMandate = mandateFilter === "all" || company.mandate_id === mandateFilter;
+      const matchesIndustry = industryFilter === "all" || company.industry === industryFilter;
+      const matchesGeography = geographyFilter === "all" || company.geography === geographyFilter;
+      const matchesStatus = statusFilter === "all" || company.status === statusFilter;
+      const matchesMandate = mandateFilter === "all" || company.mandate_id === mandateFilter;
 
-    return matchesSearch && matchesIndustry && matchesGeography && matchesStatus && matchesMandate;
-  });
+      // Revenue range
+      const revMin = revenueMin ? parseFloat(revenueMin) : null;
+      const revMax = revenueMax ? parseFloat(revenueMax) : null;
+      const matchesRevMin = revMin === null || (company.revenue !== null && company.revenue >= revMin);
+      const matchesRevMax = revMax === null || (company.revenue !== null && company.revenue <= revMax);
+
+      // Employees range
+      const empMin = employeesMin ? parseInt(employeesMin) : null;
+      const empMax = employeesMax ? parseInt(employeesMax) : null;
+      const empCount = company.employees ? parseInt(String(company.employees).replace(/,/g, "")) : null;
+      const matchesEmpMin = empMin === null || (empCount !== null && empCount >= empMin);
+      const matchesEmpMax = empMax === null || (empCount !== null && empCount <= empMax);
+
+      return matchesSearch && matchesIndustry && matchesGeography && matchesStatus && matchesMandate && matchesRevMin && matchesRevMax && matchesEmpMin && matchesEmpMax;
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+      let valA: any = null;
+      let valB: any = null;
+
+      switch (sortField) {
+        case "company_name": valA = a.company_name?.toLowerCase(); valB = b.company_name?.toLowerCase(); break;
+        case "industry": valA = a.industry?.toLowerCase(); valB = b.industry?.toLowerCase(); break;
+        case "geography": valA = a.geography?.toLowerCase(); valB = b.geography?.toLowerCase(); break;
+        case "revenue": valA = a.revenue; valB = b.revenue; break;
+        case "profit_before_tax": valA = a.profit_before_tax; valB = b.profit_before_tax; break;
+        case "total_assets": valA = a.total_assets; valB = b.total_assets; break;
+        case "net_assets": valA = a.net_assets; valB = b.net_assets; break;
+        case "employees": valA = a.employees ? parseInt(String(a.employees).replace(/,/g, "")) : null; valB = b.employees ? parseInt(String(b.employees).replace(/,/g, "")) : null; break;
+        default: valA = a.company_name?.toLowerCase(); valB = b.company_name?.toLowerCase();
+      }
+
+      if (valA == null && valB == null) return 0;
+      if (valA == null) return 1;
+      if (valB == null) return -1;
+      if (valA < valB) return sortDir === "asc" ? -1 : 1;
+      if (valA > valB) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [companies, searchQuery, industryFilter, geographyFilter, statusFilter, mandateFilter, revenueMin, revenueMax, employeesMin, employeesMax, sortField, sortDir]);
 
   // Table column definitions
   const tableColumns: ColumnDef<Company>[] = useMemo(() => [
@@ -489,70 +553,76 @@ export default function AdminCompanies() {
     {
       id: "company_name",
       label: "Company Name",
-      defaultWidth: 180,
-      minWidth: 100,
+      defaultWidth: 200,
+      minWidth: 120,
       cellClassName: "font-medium",
       render: (c) => c.company_name,
       sortKey: (c) => c.company_name,
     },
     {
+      id: "geography",
+      label: "St / Country",
+      defaultWidth: 80,
+      minWidth: 60,
+      cellClassName: "text-muted-foreground",
+      render: (c) => c.geography || "—",
+      sortKey: (c) => c.geography,
+    },
+    {
+      id: "year_incorporated",
+      label: "Year Inc.",
+      defaultWidth: 75,
+      minWidth: 60,
+      cellClassName: "text-muted-foreground",
+      render: (c) => c.year_incorporated || "—",
+      sortKey: (c) => c.year_incorporated,
+    },
+    {
       id: "industry",
-      label: "Industry",
-      defaultWidth: 140,
+      label: "NACE / Industry",
+      defaultWidth: 110,
       minWidth: 80,
       cellClassName: "text-muted-foreground",
       render: (c) => c.industry || "—",
       sortKey: (c) => c.industry,
     },
     {
-      id: "description",
-      label: "Description",
-      defaultWidth: 200,
-      minWidth: 100,
-      cellClassName: "text-muted-foreground text-xs",
-      render: (c) => (
-        <span title={c.description_of_activities || ""}>{c.description_of_activities || "—"}</span>
-      ),
-      sortKey: (c) => c.description_of_activities,
-    },
-    {
-      id: "country",
-      label: "Country",
-      defaultWidth: 110,
+      id: "employees",
+      label: "Employees",
+      defaultWidth: 90,
       minWidth: 70,
-      cellClassName: "text-muted-foreground",
-      render: (c) => c.geography || "—",
-      sortKey: (c) => c.geography,
+      render: (c) => formatNumber(c.employees),
+      sortKey: (c) => c.employees ? parseInt(String(c.employees).replace(/,/g, "")) : null,
     },
     {
       id: "revenue",
-      label: "Revenue",
-      defaultWidth: 100,
-      minWidth: 70,
+      label: "Revenue (USD)",
+      defaultWidth: 120,
+      minWidth: 90,
       render: (c) => c.revenue ? formatCurrency(c.revenue) : c.revenue_band || "—",
       sortKey: (c) => c.revenue,
     },
     {
       id: "pbt",
-      label: "PBT",
-      defaultWidth: 90,
-      minWidth: 60,
+      label: "P/L Before Tax",
+      defaultWidth: 120,
+      minWidth: 90,
       render: (c) => formatCurrency(c.profit_before_tax),
       sortKey: (c) => c.profit_before_tax,
     },
     {
       id: "total_assets",
       label: "Total Assets",
-      defaultWidth: 100,
-      minWidth: 70,
+      defaultWidth: 110,
+      minWidth: 80,
       render: (c) => formatCurrency(c.total_assets),
       sortKey: (c) => c.total_assets,
     },
     {
       id: "equity",
-      label: "Equity",
-      defaultWidth: 90,
-      minWidth: 60,
+      label: "Equity (USD)",
+      defaultWidth: 110,
+      minWidth: 80,
       render: (c) => formatCurrency(c.net_assets),
       sortKey: (c) => c.net_assets,
     },
@@ -571,11 +641,54 @@ export default function AdminCompanies() {
               className="text-primary hover:underline text-sm inline-flex items-center gap-1"
             >
               <ExternalLink className="h-3 w-3" />
-              Link
+              Visit
             </a>
           ) : "—"}
         </div>
       ),
+    },
+    {
+      id: "description",
+      label: "Description",
+      defaultWidth: 200,
+      minWidth: 100,
+      cellClassName: "text-muted-foreground text-xs",
+      render: (c) => (
+        <span title={c.description_of_activities || ""}>{(c.description_of_activities || "—").slice(0, 80)}{(c.description_of_activities?.length || 0) > 80 ? "…" : ""}</span>
+      ),
+      sortKey: (c) => c.description_of_activities,
+    },
+    {
+      id: "director_name",
+      label: "Director",
+      defaultWidth: 140,
+      minWidth: 90,
+      cellClassName: "text-muted-foreground",
+      render: (c) => c.director_name || "—",
+      sortKey: (c) => c.director_name,
+    },
+    {
+      id: "director_title",
+      label: "Title",
+      defaultWidth: 120,
+      minWidth: 80,
+      cellClassName: "text-muted-foreground text-xs",
+      render: (c) => c.director_title || "—",
+      sortKey: (c) => c.director_title,
+    },
+    {
+      id: "status",
+      label: "Status",
+      defaultWidth: 90,
+      minWidth: 70,
+      render: (c) => {
+        const st = c.status || "new";
+        return (
+          <Badge variant="outline" className={statusBadges[st] || statusBadges.new}>
+            {st.charAt(0).toUpperCase() + st.slice(1)}
+          </Badge>
+        );
+      },
     },
     {
       id: "actions",
@@ -894,6 +1007,90 @@ export default function AdminCompanies() {
                 </Select>
               </div>
 
+              {/* Revenue & Employee range filters */}
+              <div className="grid gap-4 md:grid-cols-4 mt-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Revenue Min ($)</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 1000000"
+                    value={revenueMin}
+                    onChange={(e) => setRevenueMin(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Revenue Max ($)</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 50000000"
+                    value={revenueMax}
+                    onChange={(e) => setRevenueMax(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Employees Min</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 10"
+                    value={employeesMin}
+                    onChange={(e) => setEmployeesMin(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Employees Max</label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 500"
+                    value={employeesMax}
+                    onChange={(e) => setEmployeesMax(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Sort controls */}
+              <div className="flex items-center gap-3 mt-4">
+                <label className="text-xs text-muted-foreground font-medium">Sort by:</label>
+                <Select value={sortField} onValueChange={setSortField}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="company_name">Company Name</SelectItem>
+                    <SelectItem value="geography">State/Country</SelectItem>
+                    <SelectItem value="industry">Industry/NACE</SelectItem>
+                    <SelectItem value="employees">Employees</SelectItem>
+                    <SelectItem value="revenue">Revenue</SelectItem>
+                    <SelectItem value="profit_before_tax">P/L Before Tax</SelectItem>
+                    <SelectItem value="total_assets">Total Assets</SelectItem>
+                    <SelectItem value="net_assets">Equity</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+                  className="gap-1"
+                >
+                  {sortDir === "asc" ? "↑ A→Z" : "↓ Z→A"}
+                </Button>
+
+                {/* Clear filters */}
+                {(searchQuery || industryFilter !== "all" || geographyFilter !== "all" || statusFilter !== "all" || revenueMin || revenueMax || employeesMin || employeesMax) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery(""); setIndustryFilter("all"); setGeographyFilter("all");
+                      setStatusFilter("all"); setMandateFilter("all");
+                      setRevenueMin(""); setRevenueMax(""); setEmployeesMin(""); setEmployeesMax("");
+                    }}
+                    className="text-destructive"
+                  >
+                    Clear all filters
+                  </Button>
+                )}
+              </div>
+
               <div className="mt-4">
                 <Select value={mandateFilter} onValueChange={setMandateFilter}>
                   <SelectTrigger className="w-full max-w-md">
@@ -912,7 +1109,7 @@ export default function AdminCompanies() {
 
               {filteredCompanies.length !== companies.length && (
                 <p className="mt-4 text-sm text-muted-foreground">
-                  Showing {filteredCompanies.length} of {companies.length} companies
+                  Showing <strong>{filteredCompanies.length.toLocaleString()}</strong> of {companies.length.toLocaleString()} companies
                 </p>
               )}
             </CardContent>
