@@ -60,10 +60,12 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import {
   getLocalCompanies,
+  getLocalCompanyCount,
   addLocalCompanies,
   deleteLocalCompany as deleteLocalComp,
   deleteLocalCompanies as deleteLocalComps,
   parseCsvToCompanies,
+  parseXlsxRows,
   type LocalCompany,
 } from "@/lib/localCompanyStore";
 
@@ -223,7 +225,7 @@ export default function AdminCompanies() {
         }));
 
         // Always merge in local companies
-        const localCompanies = getLocalCompanies();
+        const localCompanies = await getLocalCompanies();
         const allCompanies = [...companiesWithMandates, ...localCompanies.map(c => ({ ...c, mandate: undefined }))];
         setCompanies(allCompanies);
         setTotalCount((count || 0) + localCompanies.length);
@@ -239,7 +241,7 @@ export default function AdminCompanies() {
 
     // Fall back to local storage
     if (!supabaseWorked) {
-      const localCompanies = getLocalCompanies();
+      const localCompanies = await getLocalCompanies();
       setCompanies(localCompanies.map(c => ({ ...c, mandate: undefined })));
       setTotalCount(localCompanies.length);
 
@@ -275,7 +277,7 @@ export default function AdminCompanies() {
       await supabase.from("companies").delete().eq("id", companyId);
     } catch { /* ignore */ }
     // Also delete from local
-    deleteLocalComp(companyId);
+    await deleteLocalComp(companyId);
     setCompanies((prev) => prev.filter((c) => c.id !== companyId));
     setTotalCount((prev) => prev - 1);
     toast({
@@ -293,7 +295,7 @@ export default function AdminCompanies() {
       await supabase.from("companies").delete().in("id", ids);
     } catch { /* ignore */ }
     // Also delete from local
-    deleteLocalComps(ids);
+    await deleteLocalComps(ids);
     setCompanies((prev) => prev.filter((c) => !selectedIds.has(c.id)));
     setTotalCount((prev) => prev - ids.length);
     toast({ title: `Deleted ${ids.length} companies` });
@@ -308,91 +310,73 @@ export default function AdminCompanies() {
     }
     setUploading(true);
     try {
-      let rows: Record<string, string>[] = [];
       const isExcel = csvFile.name.endsWith(".xlsx") || csvFile.name.endsWith(".xls");
+      const mandateId = uploadMandateId || "general";
+      let totalAdded = 0;
 
       if (isExcel) {
-        // Parse XLSX
+        // Parse XLSX using array-of-arrays mode (handles merged header rows)
         const arrayBuffer = await csvFile.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
+        const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-        // Convert sheet to JSON — auto-detect header row
-        // First try with header row 1 (0-indexed), if first row has merged headers, try row 2
-        let jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
-
-        // Check if first row looks like a category header (e.g. "COMPANY INFORMATION")
-        // If the first row has very few non-empty values or values like "COMPANY INFORMATION", skip it
-        if (jsonData.length > 0) {
-          const firstRowKeys = Object.keys(jsonData[0]);
-          const firstRowVals = Object.values(jsonData[0]).filter(v => v && String(v).trim());
-          const hasCompanyName = firstRowKeys.some(k =>
-            k.toLowerCase().replace(/[_\s\-()\/]+/g, "").includes("companyname") ||
-            k.toLowerCase().replace(/[_\s\-()\/]+/g, "").includes("company")
-          );
-
-          // If first data row doesn't have recognisable headers, re-parse with header on row 2
-          if (!hasCompanyName && firstRowVals.length < 3) {
-            jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "", header: 1 } as any);
-            // Use second element as headers
-            if (jsonData.length >= 2) {
-              const headers = Object.values(jsonData[0]).map(h => String(h).trim());
-              const dataRows = jsonData.slice(1);
-              jsonData = dataRows.map(row => {
-                const obj: Record<string, string> = {};
-                const vals = Object.values(row);
-                headers.forEach((h, i) => { if (h) obj[h] = String(vals[i] || ""); });
-                return obj;
-              });
-            }
-          }
+        if (raw.length < 2) {
+          toast({ title: "Empty file", description: "No data rows found.", variant: "destructive" });
+          setUploading(false);
+          return;
         }
 
-        rows = jsonData;
+        setUploadEstimate(raw.length);
+
+        // Parse with smart header detection
+        const companyRows = parseXlsxRows(raw, mandateId);
+
+        if (companyRows.length === 0) {
+          toast({ title: "No companies found", description: "Could not find any company rows. Check your column headers.", variant: "destructive" });
+          setUploading(false);
+          return;
+        }
+
+        // Save to IndexedDB in chunks with progress
+        const CHUNK = 5000;
+        for (let i = 0; i < companyRows.length; i += CHUNK) {
+          const chunk = companyRows.slice(i, i + CHUNK);
+          const added = await addLocalCompanies(chunk);
+          totalAdded += added;
+          setUploadEstimate(Math.round(((i + CHUNK) / companyRows.length) * 100));
+        }
+
       } else {
         // Parse CSV
         const csvContent = await csvFile.text();
         const parsed = Papa.parse<Record<string, string>>(csvContent, { header: true, skipEmptyLines: true });
-        if (parsed.errors.length > 0) {
-          console.warn("CSV parse warnings:", parsed.errors);
+        const rows = parsed.data;
+
+        if (rows.length === 0) {
+          toast({ title: "Empty file", description: "No data rows found.", variant: "destructive" });
+          setUploading(false);
+          return;
         }
-        rows = parsed.data;
-      }
 
-      if (rows.length === 0) {
-        toast({ title: "Empty file", description: "No data rows found in the file.", variant: "destructive" });
-        setUploading(false);
-        return;
-      }
-
-      setUploadEstimate(rows.length);
-
-      // Parse into company objects and save locally — process in chunks for large files
-      const mandateId = uploadMandateId || "general";
-      const CHUNK_SIZE = 5000;
-      let totalAdded = 0;
-
-      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-        const chunk = rows.slice(i, i + CHUNK_SIZE);
-        const companyRows = parseCsvToCompanies(chunk, mandateId);
-        if (companyRows.length > 0) {
-          addLocalCompanies(companyRows);
-          totalAdded += companyRows.length;
-        }
+        setUploadEstimate(rows.length);
+        const companyRows = parseCsvToCompanies(rows, mandateId);
+        totalAdded = await addLocalCompanies(companyRows);
       }
 
       toast({
-        title: "Upload complete",
+        title: "Upload complete ✅",
         description: `${totalAdded.toLocaleString()} companies added from ${csvFile.name}.`,
       });
 
-      // Re-fetch to merge local + Supabase companies properly
+      // Re-fetch to show the new companies
       await fetchData(0);
 
       setCsvFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
+      console.error("Upload error:", err);
       toast({ title: "Upload failed", description: err.message || "Something went wrong.", variant: "destructive" });
     } finally {
       setUploading(false);
