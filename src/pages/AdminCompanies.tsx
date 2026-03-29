@@ -56,6 +56,15 @@ import { UploadProgressIndicator } from "@/components/admin/UploadProgressIndica
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import Papa from "papaparse";
+import {
+  getLocalCompanies,
+  addLocalCompanies,
+  deleteLocalCompany as deleteLocalComp,
+  deleteLocalCompanies as deleteLocalComps,
+  parseCsvToCompanies,
+  type LocalCompany,
+} from "@/lib/localCompanyStore";
 
 interface Profile {
   id: string;
@@ -134,7 +143,7 @@ export default function AdminCompanies() {
 
   // Upload & Enrich
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadMandateId, setUploadMandateId] = useState<string>("");
+  const [uploadMandateId, setUploadMandateId] = useState<string>("general");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadEstimate, setUploadEstimate] = useState(0);
@@ -160,63 +169,81 @@ export default function AdminCompanies() {
     if (!isAdmin) return;
     setLoading(true);
 
-    // Fetch all mandates with client info
-    const { data: mandatesData } = await supabase
-      .from("mandates")
-      .select("id, name, status, user_id, created_at, industry_description, regions, revenue_min, revenue_max")
-      .order("created_at", { ascending: false });
+    // Try Supabase first, fall back to local storage
+    let supabaseWorked = false;
 
-    if (mandatesData) {
-      const userIds = [...new Set(mandatesData.map((m) => m.user_id))];
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("id, email, full_name, company_name")
-        .in("id", userIds);
+    try {
+      // Fetch all mandates with client info
+      const { data: mandatesData } = await supabase
+        .from("mandates")
+        .select("id, name, status, user_id, created_at, industry_description, regions, revenue_min, revenue_max")
+        .order("created_at", { ascending: false });
 
-      const profilesMap = new Map<string, Profile>();
-      profilesData?.forEach((p) => profilesMap.set(p.id, p));
+      if (mandatesData && mandatesData.length > 0) {
+        const userIds = [...new Set(mandatesData.map((m) => m.user_id))];
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, email, full_name, company_name")
+          .in("id", userIds);
 
-      const mandatesWithProfiles = mandatesData.map((m) => ({
-        ...m,
-        profile: profilesMap.get(m.user_id),
-      }));
-      setMandates(mandatesWithProfiles);
+        const profilesMap = new Map<string, Profile>();
+        profilesData?.forEach((p) => profilesMap.set(p.id, p));
+
+        const mandatesWithProfiles = mandatesData.map((m) => ({
+          ...m,
+          profile: profilesMap.get(m.user_id),
+        }));
+        setMandates(mandatesWithProfiles);
+      }
+
+      // Get total count
+      const { count } = await supabase
+        .from("companies")
+        .select("*", { count: "exact", head: true });
+
+      // Fetch current page of companies
+      const p = pageNum ?? page;
+      const from = p * PAGE_SIZE;
+      const { data: companiesData, error } = await supabase
+        .from("companies")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (!error && companiesData) {
+        supabaseWorked = true;
+
+        const mandateMap = new Map<string, Mandate>();
+        mandates.forEach((m) => mandateMap.set(m.id, m));
+
+        const companiesWithMandates = companiesData.map((c) => ({
+          ...c,
+          mandate: mandateMap.get(c.mandate_id),
+        }));
+
+        // Always merge in local companies
+        const localCompanies = getLocalCompanies();
+        const allCompanies = [...companiesWithMandates, ...localCompanies.map(c => ({ ...c, mandate: undefined }))];
+        setCompanies(allCompanies);
+        setTotalCount((count || 0) + localCompanies.length);
+
+        const uniqueIndustries = [...new Set(allCompanies.map((c) => c.industry).filter(Boolean))] as string[];
+        const uniqueGeographies = [...new Set(allCompanies.map((c) => c.geography).filter(Boolean))] as string[];
+        setIndustries(uniqueIndustries.sort());
+        setGeographies(uniqueGeographies.sort());
+      }
+    } catch (err) {
+      console.log("Supabase unavailable, using local storage only");
     }
 
-    // Get total count
-    const { count } = await supabase
-      .from("companies")
-      .select("*", { count: "exact", head: true });
-    setTotalCount(count || 0);
+    // Fall back to local storage
+    if (!supabaseWorked) {
+      const localCompanies = getLocalCompanies();
+      setCompanies(localCompanies.map(c => ({ ...c, mandate: undefined })));
+      setTotalCount(localCompanies.length);
 
-    // Fetch current page of companies
-    const p = pageNum ?? page;
-    const from = p * PAGE_SIZE;
-    const { data: companiesData, error } = await supabase
-      .from("companies")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (error) {
-      console.error("Failed to fetch companies:", error);
-    }
-
-    if (companiesData && mandatesData) {
-      const mandateMap = new Map<string, Mandate>();
-      mandatesData.forEach((m) => {
-        mandateMap.set(m.id, m as Mandate);
-      });
-
-      const companiesWithMandates = companiesData.map((c) => ({
-        ...c,
-        mandate: mandateMap.get(c.mandate_id),
-      }));
-      setCompanies(companiesWithMandates);
-
-      // Extract unique filter values (from current page — approximate)
-      const uniqueIndustries = [...new Set(companiesData.map((c) => c.industry).filter(Boolean))] as string[];
-      const uniqueGeographies = [...new Set(companiesData.map((c) => c.geography).filter(Boolean))] as string[];
+      const uniqueIndustries = [...new Set(localCompanies.map((c) => c.industry).filter(Boolean))] as string[];
+      const uniqueGeographies = [...new Set(localCompanies.map((c) => c.geography).filter(Boolean))] as string[];
       setIndustries(uniqueIndustries.sort());
       setGeographies(uniqueGeographies.sort());
     }
@@ -242,62 +269,79 @@ export default function AdminCompanies() {
   };
 
   const handleDeleteCompany = async (companyId: string, companyName: string) => {
-    const { error } = await supabase.from("companies").delete().eq("id", companyId);
-    if (error) {
-      toast({
-        title: "Error deleting company",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      setCompanies((prev) => prev.filter((c) => c.id !== companyId));
-      toast({
-        title: "Company deleted",
-        description: `${companyName} has been removed.`,
-      });
-    }
+    // Try Supabase first
+    try {
+      await supabase.from("companies").delete().eq("id", companyId);
+    } catch { /* ignore */ }
+    // Also delete from local
+    deleteLocalComp(companyId);
+    setCompanies((prev) => prev.filter((c) => c.id !== companyId));
+    setTotalCount((prev) => prev - 1);
+    toast({
+      title: "Company deleted",
+      description: `${companyName} has been removed.`,
+    });
   };
 
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
     setBatchDeleting(true);
     const ids = Array.from(selectedIds);
-    const { error } = await supabase.from("companies").delete().in("id", ids);
-    if (error) {
-      toast({ title: "Batch delete failed", description: error.message, variant: "destructive" });
-    } else {
-      setCompanies((prev) => prev.filter((c) => !selectedIds.has(c.id)));
-      toast({ title: `Deleted ${ids.length} companies` });
-      setSelectedIds(new Set());
-    }
+    // Try Supabase
+    try {
+      await supabase.from("companies").delete().in("id", ids);
+    } catch { /* ignore */ }
+    // Also delete from local
+    deleteLocalComps(ids);
+    setCompanies((prev) => prev.filter((c) => !selectedIds.has(c.id)));
+    setTotalCount((prev) => prev - ids.length);
+    toast({ title: `Deleted ${ids.length} companies` });
+    setSelectedIds(new Set());
     setBatchDeleting(false);
   };
 
   const handleCsvUpload = async () => {
-    if (!csvFile || !uploadMandateId) {
-      toast({ title: "Missing fields", description: "Please select a mandate and a CSV file.", variant: "destructive" });
+    if (!csvFile) {
+      toast({ title: "Missing file", description: "Please select a CSV file.", variant: "destructive" });
       return;
     }
     setUploading(true);
     try {
       const csvContent = await csvFile.text();
-      // Estimate rows from line count (minus header)
-      const lineCount = csvContent.split("\n").filter((l) => l.trim()).length;
-      setUploadEstimate(Math.max(lineCount - 1, 1));
+      const parsed = Papa.parse<Record<string, string>>(csvContent, { header: true, skipEmptyLines: true });
 
-      const { data, error } = await supabase.functions.invoke("process-company-upload", {
-        body: { mandate_id: uploadMandateId, csv_content: csvContent },
-      });
+      if (parsed.errors.length > 0) {
+        console.warn("CSV parse warnings:", parsed.errors);
+      }
 
-      if (error) throw error;
+      const rows = parsed.data;
+      if (rows.length === 0) {
+        toast({ title: "Empty CSV", description: "No data rows found in the file.", variant: "destructive" });
+        setUploading(false);
+        return;
+      }
+
+      setUploadEstimate(rows.length);
+
+      // Parse into company objects and save locally
+      const mandateId = uploadMandateId || "general";
+      const companyRows = parseCsvToCompanies(rows, mandateId);
+      addLocalCompanies(companyRows);
 
       toast({
-        title: "Upload started",
-        description: data?.message || "Companies are being processed.",
+        title: "Upload complete",
+        description: `${companyRows.length} companies added from ${csvFile.name}.`,
       });
+
+      // Re-fetch to merge local + Supabase companies properly
+      await fetchData(0);
+
+      setCsvFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
-      setUploading(false);
       toast({ title: "Upload failed", description: err.message || "Something went wrong.", variant: "destructive" });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -674,9 +718,10 @@ export default function AdminCompanies() {
                     <label className="text-sm font-medium text-foreground mb-2 block">Select Mandate</label>
                     <Select value={uploadMandateId} onValueChange={setUploadMandateId}>
                       <SelectTrigger className="w-full max-w-md">
-                        <SelectValue placeholder="Choose a mandate…" />
+                        <SelectValue placeholder="Choose a mandate (or use General)…" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="general">General Upload (no mandate)</SelectItem>
                         {mandates.map((m) => (
                           <SelectItem key={m.id} value={m.id}>
                             {m.name} — {m.profile?.company_name || m.profile?.email || "Unknown"}
