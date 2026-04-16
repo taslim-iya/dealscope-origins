@@ -1,531 +1,384 @@
 #!/usr/bin/env python3
-"""
-Scrape UK business-for-sale listings from all accessible sites.
-Outputs JSON to public/data/listings.json
-"""
+"""DealScope listing scraper — paginates all accessible sites, supports ScrapingBee for CF sites."""
 
-import json, re, time, os, hashlib
-from urllib.request import urlopen, Request
+import json, re, time, os, sys
+from urllib.request import Request, urlopen
+from urllib.parse import quote_plus, urljoin
+from html.parser import HTMLParser
 from datetime import datetime, timezone
 
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-GB,en;q=0.9',
-}
+SCRAPINGBEE_KEY = os.environ.get('SCRAPINGBEE_API_KEY', '')
+OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'public', 'data', 'listings.json')
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+DELAY = 1.5  # seconds between requests
 
-def fetch(url, timeout=15):
-    try:
+def fetch(url, use_bee=False, render_js=False):
+    """Fetch URL content. Uses ScrapingBee if use_bee=True and key available."""
+    if use_bee and SCRAPINGBEE_KEY:
+        bee_url = f'https://app.scrapingbee.com/api/v1/?api_key={SCRAPINGBEE_KEY}&url={quote_plus(url)}'
+        if render_js:
+            bee_url += '&render_js=true&wait=3000'
+        req = Request(bee_url)
+    else:
         req = Request(url, headers=HEADERS)
-        with urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode('utf-8', errors='replace')
+    try:
+        with urlopen(req, timeout=30) as r:
+            return r.read().decode('utf-8', errors='replace')
     except Exception as e:
-        print(f"  ❌ {url}: {e}")
-        return ""
+        print(f'    ⚠ Fetch failed: {e}')
+        return ''
 
-def clean(text):
-    text = re.sub(r'<[^>]+>', '', text)
-    text = re.sub(r'&amp;', '&', text)
-    text = re.sub(r'&#8217;', "'", text)
-    text = re.sub(r'&#038;', '&', text)
-    text = re.sub(r'&nbsp;', ' ', text)
-    text = re.sub(r'&#\d+;', '', text)
-    text = re.sub(r'&[a-z]+;', '', text)
-    return re.sub(r'\s+', ' ', text).strip()
+def extract_text(html, tag='title'):
+    """Simple regex text extractor."""
+    m = re.findall(f'<{tag}[^>]*>(.*?)</{tag}>', html, re.S | re.I)
+    return [t.strip() for t in m if t.strip()]
 
-def make_id(source, title, url=""):
-    key = f"{source}::{title}::{url}"
-    return hashlib.md5(key.encode()).hexdigest()[:12]
+# ─── Source scrapers ───
 
-def parse_price(text):
-    """Extract price from text like '£79,950' or 'USD 210 K'."""
-    m = re.search(r'£([\d,]+(?:\.\d{2})?)', text)
-    if m:
-        return f"£{m.group(1)}"
-    m = re.search(r'(?:USD|GBP)\s?([\d,.]+)\s?(K|M|Lakh|Crore|Million)?', text, re.I)
-    if m:
-        val = m.group(1).replace(',', '')
-        suffix = (m.group(2) or '').upper()
-        num = float(val)
-        if suffix == 'K': num *= 1000
-        elif suffix == 'M' or suffix == 'MILLION': num *= 1_000_000
-        return f"£{int(num):,}"
-    return None
-
-
-# ─────────────────────────────────────────────────────────
-# SCRAPERS
-# ─────────────────────────────────────────────────────────
-
-def scrape_hiltonsmythe():
-    """Hilton Smythe — WordPress, no CF."""
-    print("🏛️  Hilton Smythe...")
+def scrape_hiltonsmythe(max_pages=10):
+    """Hilton Smythe — paginated."""
     listings = []
-    base = "https://hiltonsmythe.com"
-    for page in range(1, 4):
-        url = f"{base}/businesses-for-sale/" if page == 1 else f"{base}/businesses-for-sale/page/{page}/"
+    for page in range(1, max_pages + 1):
+        url = f'https://www.hiltonsmythe.com/businesses-for-sale/page/{page}/' if page > 1 else 'https://www.hiltonsmythe.com/businesses-for-sale/'
         html = fetch(url)
-        if not html: break
-        
-        # Extract listing links with titles
-        blocks = re.findall(r'<h2[^>]*>(.*?)</h2>', html, re.DOTALL)
-        link_matches = re.findall(r'href="(https://hiltonsmythe\.com/business-listing/[^"]+)"', html)
-        links = list(dict.fromkeys(link_matches))  # dedupe preserving order
-        
-        for i, h in enumerate(blocks):
-            title = clean(h)
-            if len(title) < 10 or title.startswith('{'): continue
-            link = links[i] if i < len(links) else f"{base}/businesses-for-sale/"
+        if not html or 'No results found' in html:
+            break
+        # Extract listing cards
+        cards = re.findall(r'<h[23][^>]*class="[^"]*entry-title[^"]*"[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', html, re.S)
+        prices = re.findall(r'£[\d,]+(?:\.\d+)?', html)
+        locations = re.findall(r'<span[^>]*class="[^"]*location[^"]*"[^>]*>(.*?)</span>', html, re.S)
+        if not cards:
+            # Alternative pattern
+            cards = re.findall(r'<a[^>]*href="(https://hiltonsmythe\.com/businesses-for-sale/[^"]+/)"[^>]*>\s*<h\d[^>]*>(.*?)</h\d>', html, re.S)
+        for i, (href, title) in enumerate(cards):
+            title = re.sub(r'<[^>]+>', '', title).strip()
+            if not title or title.lower() in ('businesses for sale', 'next', 'prev'):
+                continue
             listings.append({
-                'id': make_id('hiltonsmythe', title, link),
-                'title': title, 'price': None,
-                'location': '', 'industry': '',
+                'title': title,
+                'price': prices[i] if i < len(prices) else None,
+                'location': re.sub(r'<[^>]+>', '', locations[i]).strip() if i < len(locations) else '',
+                'url': href,
                 'source': 'Hilton Smythe', 'sourceId': 'hiltonsmythe',
-                'url': link, 'sourceUrl': base,
             })
-        if f'page/{page+1}' not in html: break
-        time.sleep(0.5)
-    print(f"  ✅ {len(listings)}")
+        print(f'    Page {page}: {len(cards)} items')
+        time.sleep(DELAY)
     return listings
 
-
-def scrape_smergers():
-    """SMERGERS — server-rendered."""
-    print("🤖 SMERGERS...")
+def scrape_smergers(max_pages=10):
+    """SMERGERS UK — paginated."""
     listings = []
-    html = fetch("https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/")
-    if not html: return []
-    
-    titles = re.findall(r'<h[2-4][^>]*>(.*?)</h[2-4]>', html, re.DOTALL)
-    prices = re.findall(r'(?:USD|GBP)\s?[\d,.]+\s?(?:Lakh|Crore|Million|K|M)?', html, re.I)
-    
-    for i, t in enumerate(titles):
-        title = clean(t)
-        if len(title) < 15: continue
-        if 'for Sale' not in title and 'Equity' not in title and 'Investment' not in title: continue
-        
-        price = parse_price(prices[i]) if i < len(prices) else None
-        loc_m = re.search(r'in\s+([A-Z][a-z]+(?:\s*,\s*[A-Z][a-z]+)*)', title)
-        location = loc_m.group(1) if loc_m else ''
-        
-        listings.append({
-            'id': make_id('smergers', title),
-            'title': title, 'price': price,
-            'location': location, 'industry': '',
-            'source': 'SMERGERS', 'sourceId': 'smergers',
-            'url': 'https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/',
-            'sourceUrl': 'https://www.smergers.com',
-        })
-    print(f"  ✅ {len(listings)}")
-    return listings
-
-
-def scrape_sovereign():
-    """Sovereign Business Transfer — WordPress."""
-    print("👑 Sovereign BT...")
-    listings = []
-    html = fetch("https://www.sovereignbt.co.uk/businesses-for-sale/")
-    if not html: return []
-    
-    titles = re.findall(r'<h2[^>]*>(.*?)</h2>', html, re.DOTALL)
-    prices = re.findall(r'£[\d,]+', html)
-    links = re.findall(r'href="(https://www\.sovereignbt\.co\.uk/[^"]*for-sale[^"]*)"', html)
-    
-    for i, t in enumerate(titles):
-        title = clean(t)
-        if len(title) < 15 or 'Reset' in title or 'Social' in title: continue
-        if 'For Sale' not in title and 'for sale' not in title.lower(): continue
-        
-        price = prices[i] if i < len(prices) else None
-        if price and len(price) < 4: price = None  # Skip £1, £2 etc
-        
-        loc_m = re.search(r'(?:in|For Sale)\s+([\w\s]+?)(?:\s+Area|\s+Town|\s+City)?$', title)
-        location = ''
-        for area in ['Manchester', 'Liverpool', 'Cheshire', 'Leeds', 'Sheffield', 'Wales', 'London']:
-            if area.lower() in title.lower():
-                location = area
-                break
-        
-        listings.append({
-            'id': make_id('sovereign', title),
-            'title': title, 'price': f"£{price}" if price and not price.startswith('£') else price,
-            'location': location, 'industry': '',
-            'source': 'Sovereign BT', 'sourceId': 'sovereign',
-            'url': links[i] if i < len(links) else 'https://www.sovereignbt.co.uk/businesses-for-sale/',
-            'sourceUrl': 'https://www.sovereignbt.co.uk',
-        })
-    print(f"  ✅ {len(listings)}")
-    return listings
-
-
-def scrape_hornblower():
-    """Hornblower Business Brokers — WordPress."""
-    print("📯 Hornblower...")
-    listings = []
-    html = fetch("https://hornblower-businesses.co.uk/businesses-for-sale/")
-    if not html: return []
-    
-    # Extract business names from h3/h4 tags
-    titles = re.findall(r'<h[3-4][^>]*>(.*?)</h[3-4]>', html, re.DOTALL)
-    links = re.findall(r'href="(https://hornblower-businesses\.co\.uk/business/[^"]+)"', html)
-    
-    seen = set()
-    for t in titles:
-        title = clean(t)
-        if len(title) < 10 or title.lower() in seen: continue
-        if any(skip in title.lower() for skip in ['sector', 'businesses for sale', 'industrial']): continue
-        seen.add(title.lower())
-        
-        listings.append({
-            'id': make_id('hornblower', title),
-            'title': title, 'price': None,
-            'location': '', 'industry': 'Engineering / B2B',
-            'source': 'Hornblower', 'sourceId': 'hornblower',
-            'url': links.pop(0) if links else 'https://hornblower-businesses.co.uk/businesses-for-sale/',
-            'sourceUrl': 'https://hornblower-businesses.co.uk',
-        })
-    print(f"  ✅ {len(listings)}")
-    return listings
-
-
-def scrape_sellingmybusiness():
-    """SellingMyBusiness — 800+ listings, well-structured."""
-    print("🏷️  SellingMyBusiness...")
-    listings = []
-    
-    for page in range(1, 6):
-        url = f"https://www.sellingmybusiness.co.uk/buy-a-business" if page == 1 else f"https://www.sellingmybusiness.co.uk/buy-a-business?page={page}"
+    for page in range(1, max_pages + 1):
+        url = f'https://www.smergers.com/businesses-for-sale-and-investors/c/in-united-kingdom/?page={page}'
         html = fetch(url)
-        if not html: break
-        
-        # Pattern: Price + Name + Location + Tenure + Date
-        blocks = re.findall(r'Price:\s*£([\d,]+).*?(?:\n|<br>)\s*(.*?)(?:\n|<br>)\s*Location:\s*(.*?)(?:\n|<br>)', html, re.DOTALL)
-        if not blocks:
-            # Try alternative parsing
-            prices = re.findall(r'Price:\s*£([\d,]+)', html)
-            names = re.findall(r'£[\d,]+\s*\n\s*([A-Z][\w\s,\'-]+)', html)
-            locations = re.findall(r'Location:\s*([\w\s]+)', html)
-            
-            for i in range(min(len(prices), len(names))):
-                title = clean(names[i]) if i < len(names) else f"Business #{i}"
-                location = clean(locations[i]) if i < len(locations) else ''
-                price = f"£{prices[i]}"
-                
+        if not html:
+            break
+        cards = re.findall(r'<a[^>]*class="[^"]*card[^"]*"[^>]*href="(/businesses/[^"]+)"[^>]*>.*?<h\d[^>]*>(.*?)</h\d>.*?(?:USD|GBP|EUR)\s*[\d,.]+\s*(?:K|M|B)?', html, re.S)
+        if not cards:
+            # Simpler pattern
+            titles = re.findall(r'<h\d[^>]*class="[^"]*card-title[^"]*"[^>]*>(.*?)</h\d>', html, re.S)
+            links = re.findall(r'href="(/businesses/[^"]+)"', html)
+            prices_found = re.findall(r'(?:USD|GBP|EUR)\s*[\d,.]+\s*(?:K|M|B)?', html)
+            for i, title in enumerate(titles):
+                title = re.sub(r'<[^>]+>', '', title).strip()
+                if not title:
+                    continue
                 listings.append({
-                    'id': make_id('sellingmybusiness', title, price),
-                    'title': title, 'price': price,
-                    'location': location, 'industry': '',
-                    'source': 'SellingMyBusiness', 'sourceId': 'sellingmybusiness',
-                    'url': 'https://www.sellingmybusiness.co.uk/buy-a-business',
-                    'sourceUrl': 'https://www.sellingmybusiness.co.uk',
+                    'title': title,
+                    'price': prices_found[i] if i < len(prices_found) else None,
+                    'location': 'UK',
+                    'url': f'https://www.smergers.com{links[i]}' if i < len(links) else 'https://www.smergers.com',
+                    'source': 'SMERGERS', 'sourceId': 'smergers',
                 })
         else:
-            for price, name, location in blocks:
+            for href, title in cards:
+                title = re.sub(r'<[^>]+>', '', title).strip()
                 listings.append({
-                    'id': make_id('sellingmybusiness', clean(name), price),
-                    'title': clean(name), 'price': f"£{price}",
-                    'location': clean(location), 'industry': '',
-                    'source': 'SellingMyBusiness', 'sourceId': 'sellingmybusiness',
-                    'url': 'https://www.sellingmybusiness.co.uk/buy-a-business',
-                    'sourceUrl': 'https://www.sellingmybusiness.co.uk',
+                    'title': title, 'price': None, 'location': 'UK',
+                    'url': f'https://www.smergers.com{href}',
+                    'source': 'SMERGERS', 'sourceId': 'smergers',
                 })
-        
-        if f'page={page+1}' not in html and page > 1: break
-        time.sleep(0.5)
-    
-    print(f"  ✅ {len(listings)}")
+        if len(titles if not cards else cards) == 0:
+            break
+        print(f'    Page {page}: found items')
+        time.sleep(DELAY)
     return listings
 
-
-def scrape_cogogo():
-    """Cogogo — UK business marketplace."""
-    print("🚀 Cogogo...")
+def scrape_flippa(max_pages=5):
+    """Flippa UK — paginated."""
     listings = []
-    html = fetch("https://letscogogo.com/businesses-for-sale/")
-    if not html: return []
-    
-    # Cogogo has listing cards with prices
-    prices = re.findall(r'£[\d,]+', html)
-    titles = re.findall(r'<h[2-4][^>]*>(.*?)</h[2-4]>', html, re.DOTALL)
-    links = re.findall(r'href="(https://letscogogo\.com/business/[^"]+)"', html)
-    
-    # Also try card-based extraction
-    cards = re.findall(r'<article[^>]*>(.*?)</article>', html, re.DOTALL)
-    if cards:
-        for card in cards:
-            title_m = re.search(r'<h[2-4][^>]*>(.*?)</h[2-4]>', card, re.DOTALL)
-            price_m = re.search(r'£[\d,]+', card)
-            link_m = re.search(r'href="(https://letscogogo\.com/business/[^"]+)"', card)
-            loc_m = re.search(r'(?:Location|Area):\s*([\w\s,]+)', card)
-            
-            if title_m:
-                title = clean(title_m.group(1))
-                if len(title) < 8: continue
-                listings.append({
-                    'id': make_id('cogogo', title),
-                    'title': title,
-                    'price': price_m.group(0) if price_m else None,
-                    'location': clean(loc_m.group(1)) if loc_m else '',
-                    'industry': '',
-                    'source': 'Cogogo', 'sourceId': 'cogogo',
-                    'url': link_m.group(1) if link_m else 'https://letscogogo.com/businesses-for-sale/',
-                    'sourceUrl': 'https://letscogogo.com',
-                })
-    
-    # If no cards found, use prices list as indicator
-    if not listings and prices:
-        for i, price in enumerate(prices[:20]):
-            listings.append({
-                'id': make_id('cogogo', f"cogogo-listing-{i}", price),
-                'title': f"Business Listed at {price}",
-                'price': price,
-                'location': '', 'industry': '',
-                'source': 'Cogogo', 'sourceId': 'cogogo',
-                'url': 'https://letscogogo.com/businesses-for-sale/',
-                'sourceUrl': 'https://letscogogo.com',
-            })
-    
-    print(f"  ✅ {len(listings)}")
-    return listings
-
-
-def scrape_mybizdaq():
-    """MyBizdaq — alternative Bizdaq domain, no CF."""
-    print("🔷 MyBizdaq...")
-    listings = []
-    html = fetch("https://www.mybizdaq.com/businesses-for-sale")
-    if not html: return []
-    
-    # MyBizdaq has 1155 listings, look for listing cards
-    cards = re.findall(r'<div[^>]*class="[^"]*listing-card[^"]*"[^>]*>(.*?)</div>\s*</div>', html, re.DOTALL)
-    titles = re.findall(r'<h[2-4][^>]*>(.*?)</h[2-4]>', html, re.DOTALL)
-    links = re.findall(r'href="(/businesses-for-sale/[^"]+)"', html)
-    prices = re.findall(r'£[\d,]+', html)
-    
-    # Also look for JSON-LD or structured data
-    json_ld = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.DOTALL)
-    
-    for i, t in enumerate(titles):
-        title = clean(t)
-        if len(title) < 10 or 'Available' in title: continue
-        link = f"https://www.mybizdaq.com{links[i]}" if i < len(links) else 'https://www.mybizdaq.com/businesses-for-sale'
-        listings.append({
-            'id': make_id('mybizdaq', title, link),
-            'title': title, 'price': prices[i] if i < len(prices) else None,
-            'location': '', 'industry': '',
-            'source': 'MyBizdaq', 'sourceId': 'mybizdaq',
-            'url': link, 'sourceUrl': 'https://www.mybizdaq.com',
-        })
-    
-    print(f"  ✅ {len(listings)}")
-    return listings
-
-
-def scrape_christie():
-    """Christie & Co — major UK hospitality/care broker."""
-    print("🏨 Christie & Co...")
-    listings = []
-    base = "https://www.christie.com"
-    
-    # Try their search results with different sectors
-    for sector in ['hotels', 'pubs', 'restaurants', 'care', 'retail', 'childcare', 'dental', 'pharmacy']:
-        url = f"{base}/businesses-for-sale/{sector}/"
+    for page in range(1, max_pages + 1):
+        url = f'https://flippa.com/search?filter%5Bproperty_type%5D=established_website&filter%5Bcountry%5D%5B%5D=GB&page={page}'
         html = fetch(url)
-        if not html: continue
-        
-        links = re.findall(r'href="(/businesses-for-sale/detail/\d+/[^"]+)"', html)
-        titles = re.findall(r'<h[2-4][^>]*class="[^"]*(?:title|name)[^"]*"[^>]*>(.*?)</h[2-4]>', html, re.DOTALL)
-        
-        # Broader title extraction
+        if not html:
+            break
+        titles = re.findall(r'"title"\s*:\s*"([^"]+)"', html)
+        prices = re.findall(r'"current_price"\s*:\s*(\d+)', html)
+        urls = re.findall(r'"url"\s*:\s*"(https://flippa\.com/[^"]+)"', html)
+        for i, title in enumerate(titles[:20]):
+            price_val = int(prices[i]) if i < len(prices) else 0
+            listings.append({
+                'title': title,
+                'price': f'${price_val:,}' if price_val else None,
+                'location': 'UK / Online',
+                'url': urls[i] if i < len(urls) else 'https://flippa.com',
+                'source': 'Flippa', 'sourceId': 'flippa',
+            })
         if not titles:
-            titles = re.findall(r'<h[3-4][^>]*>(.*?)</h[3-4]>', html, re.DOTALL)
-        
-        for i, link in enumerate(links[:10]):
-            slug = link.split('/')[-1]
-            title = slug.replace('-', ' ').title()
-            if len(title) < 8: continue
-            
-            listings.append({
-                'id': make_id('christie', title, link),
-                'title': title, 'price': None,
-                'location': '', 'industry': sector.title(),
-                'source': 'Christie & Co', 'sourceId': 'christie',
-                'url': f"{base}{link}",
-                'sourceUrl': base,
-            })
-        time.sleep(0.3)
-    
-    print(f"  ✅ {len(listings)}")
+            break
+        print(f'    Page {page}: {len(titles[:20])} items')
+        time.sleep(DELAY)
     return listings
 
-
-def scrape_flippa():
-    """Flippa — digital/online businesses."""
-    print("💻 Flippa...")
+def scrape_dealstream(max_pages=5):
+    """DealStream — US/Global."""
     listings = []
-    html = fetch("https://flippa.com/online-businesses-united-kingdom")
-    if not html: return []
-    
-    titles = re.findall(r'"title":\s*"([^"]{10,120})"', html)
-    prices_raw = re.findall(r'"(?:price|asking_price|current_price)":\s*(\d+)', html)
-    urls_raw = re.findall(r'"(?:url|listing_url)":\s*"(https://flippa\.com/\d+)"', html)
-    
-    seen = set()
-    for i, title in enumerate(titles):
-        if title in seen or len(title) < 10: continue
-        seen.add(title)
-        price = f"${int(prices_raw[i]):,}" if i < len(prices_raw) else None
-        url = urls_raw[i] if i < len(urls_raw) else 'https://flippa.com/online-businesses-united-kingdom'
-        listings.append({
-            'id': make_id('flippa', title, url),
-            'title': title, 'price': price,
-            'location': 'Online', 'industry': 'Digital',
-            'source': 'Flippa', 'sourceId': 'flippa',
-            'url': url, 'sourceUrl': 'https://flippa.com',
-        })
-    print(f"  ✅ {len(listings)}")
-    return listings
-
-
-def scrape_blacksbrokers():
-    """Blacks Brokers — 15+ years, Business Transfer Group member."""
-    print("⬛ Blacks Brokers...")
-    listings = []
-    for url in [
-        "https://www.blacksbrokers.com/buy-a-business/",
-        "https://www.blacksbrokers.com/businesses-for-sale/",
-    ]:
+    for page in range(1, max_pages + 1):
+        url = f'https://dealstream.com/businesses-for-sale?page={page}'
         html = fetch(url)
-        if not html or '404' in html[:500]: continue
-        
-        titles = re.findall(r'<h[2-4][^>]*>(.*?)</h[2-4]>', html, re.DOTALL)
-        prices = re.findall(r'£[\d,]+', html)
-        
-        for i, t in enumerate(titles):
-            title = clean(t)
-            if len(title) < 10: continue
+        if not html:
+            break
+        titles = re.findall(r'<h\d[^>]*class="[^"]*listing-title[^"]*"[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', html, re.S)
+        if not titles:
+            titles = re.findall(r'<a[^>]*href="(/listing/[^"]*)"[^>]*>(.*?)</a>', html, re.S)
+        prices = re.findall(r'\$[\d,]+(?:\.\d+)?', html)
+        for i, (href, title) in enumerate(titles):
+            title = re.sub(r'<[^>]+>', '', title).strip()
+            if len(title) < 5:
+                continue
             listings.append({
-                'id': make_id('blacks', title),
-                'title': title, 'price': prices[i] if i < len(prices) else None,
-                'location': '', 'industry': '',
-                'source': 'Blacks Brokers', 'sourceId': 'blacksbrokers',
-                'url': url, 'sourceUrl': 'https://www.blacksbrokers.com',
+                'title': title,
+                'price': prices[i] if i < len(prices) else None,
+                'location': 'US',
+                'url': f'https://dealstream.com{href}' if href.startswith('/') else href,
+                'source': 'DealStream', 'sourceId': 'dealstream',
             })
-        if listings: break
-    print(f"  ✅ {len(listings)}")
+        if not titles:
+            break
+        print(f'    Page {page}: {len(titles)} items')
+        time.sleep(DELAY)
     return listings
 
-
-# Google cache scraping for CF-protected sites
-def scrape_google_search(site_domain, source_name, source_id):
-    """Use Google search to find recent listings on CF-protected sites."""
-    print(f"🔍 Google search: {source_name}...")
+def scrape_bizquest(max_pages=5):
+    """BizQuest — US."""
     listings = []
-    
-    query = f"site:{site_domain} business for sale"
-    url = f"https://www.google.com/search?q={query.replace(' ', '+')}&num=30"
-    html = fetch(url)
-    if not html: return []
-    
-    # Extract Google result titles and URLs
-    results = re.findall(r'<a[^>]*href="/url\?q=(https://[^"&]+)[^"]*"[^>]*>.*?<h3[^>]*>(.*?)</h3>', html, re.DOTALL)
-    if not results:
-        # Try alternative pattern
-        results = re.findall(r'href="(https://(?:www\.)?{}/[^"]+)"[^>]*>.*?<h3[^>]*>(.*?)</h3>'.format(re.escape(site_domain)), html, re.DOTALL)
-    
-    for url_match, title_html in results:
-        title = clean(title_html)
-        if len(title) < 10: continue
-        if any(skip in title.lower() for skip in ['privacy', 'terms', 'about', 'contact', 'login', 'sign up']): continue
-        
-        listings.append({
-            'id': make_id(source_id, title, url_match),
-            'title': title, 'price': None,
-            'location': '', 'industry': '',
-            'source': source_name, 'sourceId': source_id,
-            'url': url_match, 'sourceUrl': f"https://{site_domain}",
-        })
-    
-    print(f"  ✅ {len(listings)}")
+    for page in range(1, max_pages + 1):
+        url = f'https://www.bizquest.com/businesses-for-sale/?page={page}'
+        html = fetch(url)
+        if not html or 'Page Not Found' in html:
+            break
+        cards = re.findall(r'<a[^>]*href="(/listing/[^"]*)"[^>]*class="[^"]*listing[^"]*"[^>]*>.*?<h\d[^>]*>(.*?)</h\d>', html, re.S)
+        if not cards:
+            cards = re.findall(r'<h\d[^>]*>\s*<a[^>]*href="(/listing/[^"]*)"[^>]*>(.*?)</a>', html, re.S)
+        prices = re.findall(r'\$[\d,]+', html)
+        for i, (href, title) in enumerate(cards):
+            title = re.sub(r'<[^>]+>', '', title).strip()
+            if len(title) < 5:
+                continue
+            listings.append({
+                'title': title,
+                'price': prices[i] if i < len(prices) else None,
+                'location': 'US',
+                'url': f'https://www.bizquest.com{href}',
+                'source': 'BizQuest', 'sourceId': 'bizquest',
+            })
+        if not cards:
+            break
+        print(f'    Page {page}: {len(cards)} items')
+        time.sleep(DELAY)
     return listings
 
+def scrape_with_scrapingbee(site_config, max_pages=20):
+    """Generic ScrapingBee scraper for CF-protected sites."""
+    if not SCRAPINGBEE_KEY:
+        print(f'    ⚠ No ScrapingBee key — skipping')
+        return []
+    
+    listings = []
+    name = site_config['name']
+    base_url = site_config['searchUrl']
+    page_param = site_config.get('pageParam', 'page')
+    title_pattern = site_config.get('titlePattern', r'<h\d[^>]*>(.*?)</h\d>')
+    link_pattern = site_config.get('linkPattern', r'href="([^"]*business[^"]*)"')
+    price_pattern = site_config.get('pricePattern', r'£[\d,]+(?:\.\d+)?')
+    source_id = site_config['sourceId']
+    render_js = site_config.get('renderJs', True)
 
-# ─────────────────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────────────────
+    for page in range(1, max_pages + 1):
+        sep = '&' if '?' in base_url else '?'
+        url = f'{base_url}{sep}{page_param}={page}' if page > 1 else base_url
+        html = fetch(url, use_bee=True, render_js=render_js)
+        if not html or len(html) < 500:
+            break
+        
+        titles = re.findall(title_pattern, html, re.S)
+        links = re.findall(link_pattern, html, re.S)
+        prices = re.findall(price_pattern, html)
+        
+        if not titles:
+            break
+        
+        for i, title in enumerate(titles):
+            title = re.sub(r'<[^>]+>', '', title).strip()
+            if len(title) < 5 or title.lower() in ('businesses for sale', 'search results'):
+                continue
+            href = links[i] if i < len(links) else ''
+            if href and not href.startswith('http'):
+                href = urljoin(base_url, href)
+            listings.append({
+                'title': title,
+                'price': prices[i] if i < len(prices) else None,
+                'location': site_config.get('defaultLocation', 'UK'),
+                'url': href or base_url,
+                'source': name, 'sourceId': source_id,
+            })
+        
+        print(f'    Page {page}: {len(titles)} items (via ScrapingBee)')
+        time.sleep(2)  # Be nice to ScrapingBee credits
+    
+    return listings
+
+# ScrapingBee site configs for Cloudflare-protected sites
+CF_SITES = [
+    {
+        'name': 'Rightbiz', 'sourceId': 'rightbiz',
+        'searchUrl': 'https://www.rightbiz.co.uk/businesses-for-sale',
+        'pageParam': 'page', 'renderJs': True,
+        'titlePattern': r'<h\d[^>]*class="[^"]*listing[^"]*title[^"]*"[^>]*>(.*?)</h\d>',
+        'linkPattern': r'href="(/detail/[^"]*)"',
+        'pricePattern': r'£[\d,]+',
+        'defaultLocation': 'UK',
+    },
+    {
+        'name': 'BusinessesForSale', 'sourceId': 'businessesforsale',
+        'searchUrl': 'https://uk.businessesforsale.com/uk/search/businesses-for-sale',
+        'pageParam': 'page', 'renderJs': True,
+        'titlePattern': r'<h\d[^>]*class="[^"]*listing[^"]*"[^>]*>\s*<a[^>]*>(.*?)</a>',
+        'linkPattern': r'href="(/uk/[^"]*for-sale[^"]*)"',
+        'pricePattern': r'£[\d,]+',
+        'defaultLocation': 'UK',
+    },
+    {
+        'name': 'Bizdaq', 'sourceId': 'bizdaq',
+        'searchUrl': 'https://www.bizdaq.com/businesses-for-sale',
+        'pageParam': 'page', 'renderJs': True,
+        'titlePattern': r'<h\d[^>]*>(.*?)</h\d>',
+        'linkPattern': r'href="(/business-for-sale/[^"]*)"',
+        'pricePattern': r'£[\d,]+',
+        'defaultLocation': 'UK',
+    },
+    {
+        'name': 'BizBuySell', 'sourceId': 'bizbuysell',
+        'searchUrl': 'https://www.bizbuysell.com/businesses-for-sale/',
+        'pageParam': 'page', 'renderJs': True,
+        'titlePattern': r'<a[^>]*class="[^"]*diamond-title[^"]*"[^>]*>(.*?)</a>',
+        'linkPattern': r'href="(/Business-Opportunity/[^"]*)"',
+        'pricePattern': r'\$[\d,]+',
+        'defaultLocation': 'US',
+    },
+    {
+        'name': 'Daltons Business', 'sourceId': 'daltons',
+        'searchUrl': 'https://www.daltonsbusiness.com/buy/business-for-sale',
+        'pageParam': 'page', 'renderJs': True,
+        'titlePattern': r'<h\d[^>]*class="[^"]*title[^"]*"[^>]*>(.*?)</h\d>',
+        'linkPattern': r'href="(/buy/[^"]*)"',
+        'pricePattern': r'£[\d,]+',
+        'defaultLocation': 'UK',
+    },
+]
+
+def scrape_google_results(site_domain, max_pages=3):
+    """Scrape business listings via Google search cache."""
+    listings = []
+    for page in range(max_pages):
+        query = f'site:{site_domain} business for sale'
+        url = f'https://www.google.com/search?q={quote_plus(query)}&start={page * 10}'
+        html = fetch(url)
+        if not html:
+            break
+        # Extract result titles and URLs
+        results = re.findall(r'<a[^>]*href="(https?://(?:www\.)?{0}[^"]*)"[^>]*>.*?<h3[^>]*>(.*?)</h3>'.format(re.escape(site_domain)), html, re.S)
+        for href, title in results:
+            title = re.sub(r'<[^>]+>', '', title).strip()
+            if len(title) < 5:
+                continue
+            listings.append({
+                'title': title, 'price': None, 'location': 'UK',
+                'url': href,
+                'source': site_domain.split('.')[0].title(), 'sourceId': site_domain.split('.')[0],
+            })
+        if not results:
+            break
+        time.sleep(2)
+    return listings
+
 
 def main():
     all_listings = []
-    sources_summary = {}
-    
+    sources = {}
+
     # Direct scrapers (no Cloudflare)
     scrapers = [
-        scrape_hiltonsmythe,
-        scrape_smergers,
-        scrape_sovereign,
-        scrape_hornblower,
-        scrape_sellingmybusiness,
-        scrape_cogogo,
-        scrape_mybizdaq,
-        scrape_christie,
-        scrape_flippa,
-        scrape_blacksbrokers,
+        ('Hilton Smythe', scrape_hiltonsmythe),
+        ('SMERGERS', scrape_smergers),
+        ('Flippa', scrape_flippa),
+        ('DealStream', scrape_dealstream),
+        ('BizQuest', scrape_bizquest),
     ]
-    
-    # Google search for CF-protected sites
-    google_targets = [
-        ('www.rightbiz.co.uk', 'Rightbiz', 'rightbiz'),
-        ('www.daltonsbusiness.com', 'Daltons Business', 'daltons'),
-        ('uk.businessesforsale.com', 'BusinessesForSale.com', 'businessesforsale'),
-    ]
-    
-    for scraper in scrapers:
+
+    for name, fn in scrapers:
+        print(f'🏢 Scraping {name}...')
         try:
-            results = scraper()
-            all_listings.extend(results)
-            sid = results[0]['sourceId'] if results else scraper.__name__.replace('scrape_', '')
-            sources_summary[sid] = len(results)
+            items = fn()
+            all_listings.extend(items)
+            sources[name.lower().replace(' ', '')] = len(items)
+            print(f'  ✅ {len(items)} listings')
         except Exception as e:
-            print(f"  ❌ Error in {scraper.__name__}: {e}")
-        time.sleep(0.8)
-    
-    for domain, name, sid in google_targets:
-        try:
-            results = scrape_google_search(domain, name, sid)
-            all_listings.extend(results)
-            sources_summary[sid] = len(results)
-        except Exception as e:
-            print(f"  ❌ Google search error for {name}: {e}")
-        time.sleep(1)
-    
-    # Deduplicate
+            print(f'  ❌ {e}')
+            sources[name.lower().replace(' ', '')] = 0
+
+    # ScrapingBee scrapers (Cloudflare-protected)
+    if SCRAPINGBEE_KEY:
+        for site in CF_SITES:
+            print(f'🐝 Scraping {site["name"]} via ScrapingBee...')
+            try:
+                items = scrape_with_scrapingbee(site, max_pages=20)
+                all_listings.extend(items)
+                sources[site['sourceId']] = len(items)
+                print(f'  ✅ {len(items)} listings')
+            except Exception as e:
+                print(f'  ❌ {e}')
+                sources[site['sourceId']] = 0
+    else:
+        print('⚠ No SCRAPINGBEE_API_KEY set — skipping Cloudflare-protected sites')
+        print('  Affected: Rightbiz, Daltons, BusinessesForSale, Bizdaq, BizBuySell')
+
+    # Assign IDs and deduplicate
     seen = set()
     unique = []
-    for l in all_listings:
-        key = l['title'].lower()[:50]
+    for item in all_listings:
+        key = item['title'].lower().replace(' ', '')[:40]
         if key not in seen:
             seen.add(key)
-            unique.append(l)
-    
-    output = {
+            item['id'] = f"{item['sourceId']}-{len(unique)}"
+            item['industry'] = ''
+            item['sourceUrl'] = item.get('url', '')
+            item['revenue'] = None
+            unique.append(item)
+
+    # Write output
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    data = {
         'total': len(unique),
-        'sources': sources_summary,
+        'sources': sources,
         'scrapedAt': datetime.now(timezone.utc).isoformat(),
         'listings': unique,
     }
-    
-    out_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'public', 'data')
-    os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, 'listings.json')
-    
-    with open(out_path, 'w') as f:
-        json.dump(output, f, indent=2)
-    
-    print(f"\n{'='*50}")
-    print(f"Total: {len(unique)} unique listings from {len([v for v in sources_summary.values() if v > 0])} sources")
-    print(f"Saved to: {out_path}")
-    for sid, count in sorted(sources_summary.items(), key=lambda x: -x[1]):
-        print(f"  {sid}: {count}")
+    with open(OUT, 'w') as f:
+        json.dump(data, f, indent=2)
+
+    print(f'\n📊 Total: {len(unique)} unique listings from {len(sources)} sources')
+    print(f'📁 Written to {OUT}')
 
 
 if __name__ == '__main__':

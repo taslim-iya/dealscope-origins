@@ -1,0 +1,91 @@
+{
+  "categories": {
+    "uk_major": [
+      { "name": "Rightbiz", "url": "https://www.rightbiz.co.uk", "searchUrl": "https://www.rightbiz.co.uk/businesses-for-sale", "country": "UK", "est_listings": 10000, "cloudflare": true },
+      { "name": "Daltons Business", "url": "https://www.daltonsbusiness.com", "searchUrl": "https://www.daltonsbusiness.com/buy/business-for-sale", "country": "UK", "est_listings": 20000, "cloudflare": false },
+      { "name": "BusinessesForSale.com (UK)", "url": "https://uk.businessesforsale.com", "searchUrl": "https://uk.businessesforsale.com/uk/search/businesses-for-sale", "country": "UK", "est_listings": 13000, "cloudflare": true },
+      { "name": "Bizdaq", "url": "https://www.bizdaq.com", "searchUrl": "https://www.bizdaq.com/businesses-for-sale", "country": "UK", "est_listings": 3000, "cloudflare": true },
+      { "name": "Hilton Smythe", "url": "https://www.hiltonsmythe.com", "searchUrl": "https://www.hiltonsmythe.com/businesses-for-sale/", "country": "UK", "est_listings": 500, "cloudflare": false },
+      { "name": "Christie & Co", "url": "https://www.christie.com", "searchUrl": "https://www.christie.com/businesses-for-sale/", "country": "UK", "est_listings": 2000, "cloudflare": false },
+      { "name": "Nationwide Businesses", "url": "https://www.nationwidebusinesses.co.uk", "searchUrl": "https://www.nationwidebusinesses.co.uk/businesses-for-sale", "country": "UK", "est_listings": 300, "cloudflare": false },
+      { "name": "Intelligent Business Partners", "url": "https://www.intelligent.co.uk", "searchUrl": "https://www.intelligent.co.uk/businesses-for-sale", "country": "UK", "est_listings": 400, "cloudflare": false }
+    ],
+    "uk_specialist": [
+      { "name": "SMERGERS", "url": "https://www.smergers.com", "searchUrl": "https://www.smergers.com/businesses-for-sale-and-investors/c/in-united-kingdom/", "country": "UK/Global", "est_listings": 5000, "cloudflare": false },
+      { "name": "Sovereign Business Transfer", "url": "https://www.sovereignbt.co.uk", "searchUrl": "https://www.sovereignbt.co.uk/businesses-for-sale/", "country": "UK", "est_listings": 100, "cloudflare": false },
+      { "name": "Hornblower Businesses", "url": "https://hornblower-businesses.co.uk", "searchUrl": "https://hornblower-businesses.co.uk/businesses-for-sale/", "country": "UK", "est_listings": 100, "cloudflare": false },
+      { "name": "Selling My Business", "url": "https://www.sellingmybusiness.co.uk", "searchUrl": "https://www.sellingmybusiness.co.uk/businesses-for-sale/", "country": "UK", "est_listings": 200, "cloudflare": false },
+      { "name": "Blacks Brokers", "url": "https://www.blacksbrokers.com", "searchUrl": "https://www.blacksbrokers.com/businesses-for-sale/", "country": "UK", "est_listings": 150, "cloudflare": false },
+      { "name": "MyBizdaq", "url": "https://www.mybizdaq.com", "searchUrl": "https://www.mybizdaq.com/businesses-for-sale", "country": "UK", "est_listings": 1000, "cloudflare": true },
+      { "name": "Business Sale Report", "url": "https://www.businesssalereport.com", "searchUrl": "https://www.businesssalereport.com/search", "country": "UK", "est_listings": 500, "cloudflare": false },
+      { "name": "Cogogo", "url": "https://letscogogo.com", "searchUrl": "https://letscogogo.com/businesses-for-sale/", "country": "UK", "est_listings": 200, "cloudflare": false }
+    ],
+    "us_major": [
+      { "name": "BizBuySell", "url": "https://www.bizbuysell.com", "searchUrl": "https://www.bizbuysell.com/businesses-for-sale/", "country": "US", "est_listings": 65000, "cloudflare": true },
+      { "name": "BizQuest", "url": "https://www.bizquest.com", "searchUrl": "https://www.bizquest.com/businesses-for-sale/", "country": "US", "est_listings": 10000, "cloudflare": false },
+      { "name": "DealStream", "url": "https://dealstream.com", "searchUrl": "https://dealstream.com/businesses-for-sale", "country": "US/Global", "est_listings": 8000, "cloudflare": false },
+      { "name": "LoopNet (Businesses)", "url": "https://www.loopnet.com", "searchUrl": "https://www.loopnet.com/biz/businesses-for-sale/", "country": "US", "est_listings": 5000, "cloudflare": true },
+      { "name": "BusinessBroker.net", "url": "https://www.businessbroker.net", "searchUrl": "https://www.businessbroker.net/businesses-for-sale/", "country": "US", "est_listings": 15000, "cloudflare": false },
+      { "name": "Axial", "url": "https://www.axial.net", "searchUrl": "https://www.axial.net/forum/deals/", "country": "US", "est_listings": 2000, "cloudflare": false, "note": "Lower middle market M&A" }
+    ],
+    "global_digital": [
+      { "name": "Acquire.com", "url": "https://acquire.com", "searchUrl": "https://acquire.com/browse", "country": "Global", "est_listings": 5000, "cloudflare": true, "note": "SaaS/tech startups" },
+      { "name": "Flippa", "url": "https://flippa.com", "searchUrl": "https://flippa.com/online-businesses", "country": "Global", "est_listings": 10000, "cloudflare": false },
+      { "name": "Empire Flippers", "url": "https://empireflippers.com", "searchUrl": "https://empireflippers.com/marketplace/", "country": "Global", "est_listings": 500, "cloudflare": true, "note": "Premium vetted, $100K-$10M" },
+      { "name": "FE International", "url": "https://feinternational.com", "searchUrl": "https://feinternational.com/buy-a-website/", "country": "Global", "est_listings": 200, "cloudflare": false, "note": "7-8 figure SaaS/ecomm" },
+      { "name": "Quiet Light", "url": "https://quietlight.com", "searchUrl": "https://quietlight.com/listings/", "country": "Global", "est_listings": 100, "cloudflare": false },
+      { "name": "Motion Invest", "url": "https://www.motioninvest.com", "searchUrl": "https://www.motioninvest.com/buy-websites/", "country": "Global", "est_listings": 300, "cloudflare": false, "note": "Content sites under $100K" },
+      { "name": "Investors Club", "url": "https://investors.club", "searchUrl": "https://investors.club/marketplace/", "country": "Global", "est_listings": 200, "cloudflare": false },
+      { "name": "SideProjectors", "url": "https://www.sideprojectors.com", "searchUrl": "https://www.sideprojectors.com/#/", "country": "Global", "est_listings": 500, "cloudflare": false },
+      { "name": "Ecomswap", "url": "https://ecomswap.io", "searchUrl": "https://ecomswap.io/marketplace/", "country": "Global", "est_listings": 100, "cloudflare": false }
+    ],
+    "insurance_brokerage": [
+      { "name": "AgencyEquity", "url": "https://www.agencyequity.com", "searchUrl": "https://www.agencyequity.com/listing-categories/insurance-agencies-for-sale", "country": "US", "est_listings": 500, "note": "Insurance agencies only" },
+      { "name": "Synergy Business Brokers (Insurance)", "url": "https://synergybb.com", "searchUrl": "https://synergybb.com/businesses-for-sale/insurance-agencies-for-sale/", "country": "US", "est_listings": 200 },
+      { "name": "BizBuySell Insurance", "url": "https://www.bizbuysell.com", "searchUrl": "https://www.bizbuysell.com/insurance-agencies-for-sale/", "country": "US", "est_listings": 256 },
+      { "name": "DealStream Insurance", "url": "https://dealstream.com", "searchUrl": "https://dealstream.com/insurance-brokers-for-sale", "country": "US/Global", "est_listings": 300 }
+    ],
+    "wealth_management_ria": [
+      { "name": "FP Transitions", "url": "https://www.fptransitions.com", "searchUrl": "https://www.fptransitions.com/open-market", "country": "US", "est_listings": 1000, "note": "RIA/financial advisory M&A leader" },
+      { "name": "Succession Resource Group (myCompass)", "url": "https://www.successionresource.com", "searchUrl": "https://www.successionresource.com/marketplace/", "country": "US", "est_listings": 300 },
+      { "name": "Oak Street RIA Exchange", "url": "https://exchange.oakstreetfunding.com", "searchUrl": "https://exchange.oakstreetfunding.com/ria-firm-exchange", "country": "US", "est_listings": 200 },
+      { "name": "APBOE", "url": "https://www.apboe.com", "searchUrl": "https://www.apboe.com/", "country": "US", "est_listings": 150, "note": "Advisory Practice Board of Exchange" },
+      { "name": "RIA Match", "url": "https://riamatch.com", "searchUrl": "https://riamatch.com/", "country": "US", "est_listings": 100 },
+      { "name": "FinLink", "url": "https://fin.link", "searchUrl": "https://fin.link/market/", "country": "US", "est_listings": 200 }
+    ],
+    "accounting_cpa": [
+      { "name": "Accounting Practice Sales", "url": "https://www.accountingpracticesales.com", "searchUrl": "https://www.accountingpracticesales.com/practices-for-sale/", "country": "US", "est_listings": 500 },
+      { "name": "TACS Group", "url": "https://www.tacsgroup.com", "searchUrl": "https://www.tacsgroup.com/listings/", "country": "US", "est_listings": 200, "note": "Accounting practice transitions" },
+      { "name": "Poe Group Advisors", "url": "https://poegroupadvisors.com", "searchUrl": "https://poegroupadvisors.com/listings/", "country": "US", "est_listings": 150 }
+    ],
+    "medical_dental_pharmacy": [
+      { "name": "Practice Transitions", "url": "https://www.practicetransitions.com", "searchUrl": "https://www.practicetransitions.com/practices-for-sale/", "country": "US", "est_listings": 300, "note": "Dental practices" },
+      { "name": "ADS Watson", "url": "https://www.adswatson.com", "searchUrl": "https://www.adswatson.com/dental-practices-for-sale/", "country": "US", "est_listings": 200 },
+      { "name": "Healthcare Business Brokers", "url": "https://www.healthcarebusinessbrokers.com", "searchUrl": "https://www.healthcarebusinessbrokers.com/", "country": "US", "est_listings": 100 },
+      { "name": "PharmacyChecker (Sales)", "url": "https://www.pharmacyforsale.com", "searchUrl": "https://www.pharmacyforsale.com/", "country": "US/UK", "est_listings": 50 }
+    ],
+    "hospitality": [
+      { "name": "Christie & Co Hospitality", "url": "https://www.christie.com", "searchUrl": "https://www.christie.com/businesses-for-sale/hotels/", "country": "UK/EU", "est_listings": 1000, "note": "Hotels, pubs, restaurants" },
+      { "name": "Sidney Phillips", "url": "https://www.sidneyphillips.co.uk", "searchUrl": "https://www.sidneyphillips.co.uk/businesses-for-sale/", "country": "UK", "est_listings": 500, "note": "Pubs and restaurants" },
+      { "name": "Fleurets", "url": "https://www.fleurets.com", "searchUrl": "https://www.fleurets.com/property-search/", "country": "UK", "est_listings": 300, "note": "Licensed hospitality" },
+      { "name": "Guy Simmonds", "url": "https://www.guysimmonds.co.uk", "searchUrl": "https://www.guysimmonds.co.uk/businesses-for-sale/", "country": "UK", "est_listings": 200, "note": "Pubs, hotels, restaurants" }
+    ],
+    "franchise": [
+      { "name": "Franchise Direct", "url": "https://www.franchisedirect.com", "searchUrl": "https://www.franchisedirect.com/", "country": "Global", "est_listings": 5000 },
+      { "name": "Franchise Gator", "url": "https://www.franchisegator.com", "searchUrl": "https://www.franchisegator.com/", "country": "US", "est_listings": 3000 },
+      { "name": "The Franchise Magazine (UK)", "url": "https://www.thefranchisemagazine.net", "searchUrl": "https://www.thefranchisemagazine.net/franchise-directory/", "country": "UK", "est_listings": 500 }
+    ],
+    "pe_deal_sourcing": [
+      { "name": "Axial", "url": "https://www.axial.net", "searchUrl": "https://www.axial.net/forum/deals/", "country": "US", "est_listings": 2000, "note": "Lower middle market M&A network" },
+      { "name": "Grata", "url": "https://grata.com", "searchUrl": "https://grata.com/", "country": "US", "est_listings": 0, "note": "AI-powered deal sourcing (SaaS, not marketplace)" },
+      { "name": "SourceScrub", "url": "https://sourcescrub.com", "searchUrl": "https://sourcescrub.com/", "country": "US", "est_listings": 0, "note": "PE deal sourcing data (SaaS)" },
+      { "name": "Cyndx", "url": "https://www.cyndx.com", "searchUrl": "https://www.cyndx.com/", "country": "US", "est_listings": 0, "note": "AI deal origination (SaaS)" }
+    ],
+    "law_firms": [
+      { "name": "Marvil (Law Practice Brokers)", "url": "https://www.marvil.co.uk", "searchUrl": "https://www.marvil.co.uk/", "country": "UK", "est_listings": 50 },
+      { "name": "LFBB (Law Firm Business Brokers)", "url": "https://www.lfbb.com", "searchUrl": "https://www.lfbb.com/practices-for-sale/", "country": "US", "est_listings": 100 }
+    ]
+  },
+  "total_sources": 60,
+  "generated": "2026-04-16"
+}

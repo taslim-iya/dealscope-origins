@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DealScope Listing Extractor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, system-ui, sans-serif; background: #F6F9FC; color: #1A1F36; padding: 40px; max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    p { font-size: 14px; color: #697386; margin-bottom: 20px; line-height: 1.6; }
+    .bookmarklet-btn { display: inline-block; padding: 14px 28px; background: #635BFF; color: #fff; font-size: 15px; font-weight: 600; border-radius: 8px; text-decoration: none; cursor: grab; margin-bottom: 24px; }
+    .bookmarklet-btn:hover { background: #5046E5; }
+    .step { padding: 16px 20px; background: #fff; border: 1px solid #E3E8EE; border-radius: 8px; margin-bottom: 12px; }
+    .step h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .step p { font-size: 13px; color: #697386; margin-bottom: 0; }
+    .step-num { display: inline-block; width: 24px; height: 24px; background: #635BFF; color: #fff; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 700; margin-right: 8px; }
+    code { background: #F0F0FF; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .sites { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+    .site { padding: 10px 14px; background: #fff; border: 1px solid #E3E8EE; border-radius: 6px; font-size: 13px; }
+    .site a { color: #635BFF; text-decoration: none; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <h1>DealScope Listing Extractor</h1>
+  <p>Drag this button to your bookmarks bar, then click it on any business-for-sale page to extract all listings.</p>
+
+  <a class="bookmarklet-btn" href="javascript:void(function(){var d=document,ls=[],rows=d.querySelectorAll('[class*=listing],[class*=result],[class*=card],[class*=item],.search-result,.property-card,.business-card,article');if(!rows.length)rows=d.querySelectorAll('tr,li');rows.forEach(function(r){var t=r.querySelector('h1,h2,h3,h4,h5,a[class*=title],.title,.name');var p=r.textContent.match(/[£$€]\s*[\d,]+(?:\.\d+)?(?:\s*(?:k|m|K|M))?/);var l=r.querySelector('[class*=location],[class*=area],.location');if(t&&t.textContent.trim().length>5){ls.push({title:t.textContent.trim().slice(0,200),price:p?p[0].trim():null,location:l?l.textContent.trim():'',url:t.href||t.closest('a')?.href||location.href})}});if(!ls.length){alert('No listings found on this page. Try a search results page.');return}var b=new Blob([JSON.stringify({source:location.hostname,url:location.href,extracted:new Date().toISOString(),count:ls.length,listings:ls},null,2)],{type:'application/json'});var a=d.createElement('a');a.href=URL.createObjectURL(b);a.download='dealscope-extract-'+location.hostname.replace(/\./g,'-')+'.json';a.click();alert('Extracted '+ls.length+' listings! File downloaded.')}())">📋 Extract Listings</a>
+
+  <h2 style="font-size: 18px; font-weight: 600; margin: 24px 0 12px;">How to use</h2>
+
+  <div class="step">
+    <h3><span class="step-num">1</span>Drag the purple button above to your bookmarks bar</h3>
+    <p>If your bookmarks bar is hidden, press <code>Ctrl+Shift+B</code> (Windows) or <code>Cmd+Shift+B</code> (Mac)</p>
+  </div>
+
+  <div class="step">
+    <h3><span class="step-num">2</span>Go to any business listing site and search</h3>
+    <p>Visit any of the sites below and browse the listings page</p>
+  </div>
+
+  <div class="step">
+    <h3><span class="step-num">3</span>Click the bookmarklet</h3>
+    <p>It extracts all visible listings on the page and downloads a JSON file</p>
+  </div>
+
+  <div class="step">
+    <h3><span class="step-num">4</span>Repeat for each page</h3>
+    <p>Navigate to page 2, 3, etc. and click the bookmarklet again on each page. Send me all the JSON files.</p>
+  </div>
+
+  <h2 style="font-size: 18px; font-weight: 600; margin: 24px 0 12px;">Sites to extract from</h2>
+  <p>These are the high-value sites blocked by Cloudflare:</p>
+
+  <div class="sites">
+    <div class="site"><a href="https://www.rightbiz.co.uk/businesses-for-sale" target="_blank">Rightbiz</a> — 10K+ UK listings</div>
+    <div class="site"><a href="https://www.daltonsbusiness.com/buy/business-for-sale" target="_blank">Daltons Business</a> — 20K+ UK</div>
+    <div class="site"><a href="https://uk.businessesforsale.com/uk/search/businesses-for-sale" target="_blank">BusinessesForSale</a> — 13K+ UK</div>
+    <div class="site"><a href="https://www.bizdaq.com/businesses-for-sale" target="_blank">Bizdaq</a> — 3K+ UK</div>
+    <div class="site"><a href="https://www.bizbuysell.com/businesses-for-sale/" target="_blank">BizBuySell</a> — 65K+ US</div>
+    <div class="site"><a href="https://acquire.com/browse" target="_blank">Acquire.com</a> — 5K+ SaaS/Tech</div>
+    <div class="site"><a href="https://www.agencyequity.com/" target="_blank">AgencyEquity</a> — Insurance</div>
+    <div class="site"><a href="https://www.fptransitions.com/open-market" target="_blank">FP Transitions</a> — RIA/Wealth</div>
+  </div>
+</body>
+</html>

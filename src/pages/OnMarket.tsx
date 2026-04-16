@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Globe, RefreshCw, ExternalLink, Search, ArrowUpDown, Filter, X,
   Building2, MapPin, PoundSterling, ChevronDown, ChevronRight, ChevronUp,
-  Star, Eye, MessageSquare, Send, Loader2, Download, Columns,
+  Star, Eye, MessageSquare, Send, Loader2, Columns,
   ArrowDown, ArrowUp, SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -344,15 +344,6 @@ export default function OnMarket() {
   const activeSources = Object.entries(sourceCounts).filter(([_, c]) => c > 0);
   const selectedListing = selectedId ? listings.find(l => l.id === selectedId) : null;
 
-  const exportCSV = () => {
-    const header = 'Name,Price,Location,Sector,Source,URL';
-    const rows = filtered.map(l => `"${l.title}","${l.price || ''}","${l.location}","${l.industry}","${l.source}","${l.url}"`);
-    const csv = [header, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'dealscope-listings.csv'; a.click();
-  };
 
   return (
     <AppLayout>
@@ -375,9 +366,7 @@ export default function OnMarket() {
                 <X size={12} /> Clear AI filter
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={exportCSV} style={{ fontSize: 12 }}>
-              <Download size={12} /> Export CSV
-            </Button>
+
           </div>
         </div>
 
