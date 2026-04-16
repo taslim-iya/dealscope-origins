@@ -62,6 +62,13 @@ const SOURCE_INFO: Record<string, { name: string; emoji: string; url: string; es
   transworld: { name: 'Transworld', emoji: '🌍', url: 'https://www.tworld.com/locations/united-kingdom/', estimate: '100+' },
   buymybiz: { name: 'BuyMyBiz', emoji: '💼', url: 'https://www.buymybiz.co.uk', estimate: '150+' },
   bizquest: { name: 'BizQuest', emoji: '🔍', url: 'https://www.bizquest.com/businesses-for-sale-in-united-kingdom/', estimate: '200+' },
+  sovereign: { name: 'Sovereign BT', emoji: '👑', url: 'https://www.sovereignbt.co.uk/businesses-for-sale/', estimate: '50+' },
+  hornblower: { name: 'Hornblower', emoji: '📯', url: 'https://hornblower-businesses.co.uk/businesses-for-sale/', estimate: '30+' },
+  sellingmybusiness: { name: 'SellingMyBusiness', emoji: '🏷️', url: 'https://www.sellingmybusiness.co.uk/buy-a-business', estimate: '800+' },
+  cogogo: { name: 'Cogogo', emoji: '🚀', url: 'https://letscogogo.com/businesses-for-sale/', estimate: '200+' },
+  mybizdaq: { name: 'MyBizdaq', emoji: '📊', url: 'https://www.mybizdaq.com/businesses-for-sale', estimate: '1,155' },
+  christie: { name: 'Christie & Co', emoji: '🏨', url: 'https://www.christie.com/businesses-for-sale/', estimate: '500+' },
+  blacksbrokers: { name: 'Blacks Brokers', emoji: '⬛', url: 'https://www.blacksbrokers.com/', estimate: '100+' },
 };
 
 export default function OnMarket() {
