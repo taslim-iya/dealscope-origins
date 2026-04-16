@@ -1,573 +1,331 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from 'react';
 import {
-  Filter,
-  Globe,
-  Layers,
-  XCircle,
-  Sparkles,
-  Search,
-  ExternalLink,
-  Loader2,
-  Database,
-  RefreshCw,
-  Settings,
-  Plus,
-  ClipboardList,
-} from "lucide-react";
-import { Layout } from "@/components/layout/Layout";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+  Globe, Plus, Trash2, ExternalLink, Sparkles, Loader2, Search, ArrowUpDown,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { DashboardHeader } from "@/components/layout/DashboardHeader";
-import { ScrapeSourcesManager } from "@/components/marketplace/ScrapeSourcesManager";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { useOnMarketStore, type OnMarketDeal, type ScrapeSource } from '@/lib/onMarketStore';
+import { useSettingsStore } from '@/lib/settingsStore';
+import AppLayout from '@/components/layout/AppLayout';
 
-interface OnMarketDeal {
-  id: string;
-  company_name: string;
-  description: string | null;
-  industry: string | null;
-  location: string | null;
-  asking_price: string | null;
-  revenue: string | null;
-  profit: string | null;
-  net_assets: string | null;
-  source: string;
-  source_url: string;
-  ai_summary: string | null;
-  scraped_at: string;
-}
+function genId() { return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36); }
 
-const whatItIs = [
-  "Aggregated, normalised view of on-market opportunities",
-  "Built for institutional buyers seeking deal flow",
-  "AI-powered extraction of company details & financials",
-  "Search, filter, and monitor across sources",
-];
-
-const whatItIsNot = [
-  "Not a brokerage",
-  "Not a marketplace",
-  "No seller mandates",
-  "No introductions or negotiations",
-];
+const emptyDeal = {
+  companyName: '', description: '', industry: '', location: '',
+  askingPrice: null as number | null, revenue: null as number | null,
+  sourceUrl: '', sourceName: 'Manual',
+};
 
 export default function OnMarket() {
-  const { user, profile, loading: authLoading, signOut } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
-  
-  const [deals, setDeals] = useState<OnMarketDeal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [industryFilter, setIndustryFilter] = useState("all");
-  const [scraping, setScraping] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingRole, setCheckingRole] = useState(true);
+  const store = useOnMarketStore();
+  const settings = useSettingsStore((s) => s.settings);
+  const [showAddDeal, setShowAddDeal] = useState(false);
+  const [showAddSource, setShowAddSource] = useState(false);
+  const [dealForm, setDealForm] = useState(emptyDeal);
+  const [sourceForm, setSourceForm] = useState({ name: '', url: '' });
+  const [search, setSearch] = useState('');
+  const [aiLoading, setAiLoading] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const columns = [
-    { key: "company", label: "Company", align: "left" },
-    { key: "industry", label: "Industry", align: "left" },
-    { key: "location", label: "Location", align: "left" },
-    { key: "asking_price", label: "Asking Price", align: "right" },
-    { key: "revenue", label: "Revenue", align: "right" },
-    { key: "profit", label: "Profit", align: "right" },
-    { key: "net_assets", label: "Net Assets", align: "right" },
-    { key: "source", label: "Source", align: "left" },
-    { key: "listed", label: "Listed", align: "left" },
-    { key: "link", label: "", align: "left" },
-  ];
-
-  const defaultWidths = ["200px", "130px", "120px", "110px", "100px", "100px", "100px", "100px", "100px", "40px"];
-  const [columnWidths, setColumnWidths] = useState<string[]>(defaultWidths);
-  const resizingCol = useRef<number | null>(null);
-  const startX = useRef(0);
-  const startWidth = useRef(0);
-
-  const handleResizeStart = useCallback((e: React.MouseEvent, colIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    resizingCol.current = colIndex;
-    startX.current = e.clientX;
-    startWidth.current = parseInt(columnWidths[colIndex]);
-
-    const onMouseMove = (ev: MouseEvent) => {
-      if (resizingCol.current === null) return;
-      const diff = ev.clientX - startX.current;
-      const newWidth = Math.max(60, startWidth.current + diff);
-      setColumnWidths((prev) => {
-        const next = [...prev];
-        next[resizingCol.current!] = `${newWidth}px`;
-        return next;
-      });
-    };
-
-    const onMouseUp = () => {
-      resizingCol.current = null;
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, [columnWidths]);
-
-  // Check if user has admin role
-  useEffect(() => {
-    const checkAdminRole = async () => {
-      if (!user) {
-        setCheckingRole(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      setIsAdmin(!!data);
-      setCheckingRole(false);
-    };
-
-    if (!authLoading) {
-      checkAdminRole();
-    }
-  }, [user, authLoading]);
-
-  useEffect(() => {
-    if (!checkingRole && isAdmin) {
-      fetchDeals();
-    } else if (!checkingRole) {
-      setLoading(false);
-    }
-  }, [isAdmin, checkingRole]);
-
-  const fetchDeals = async () => {
-    if (!user) return;
-    
-    const { data, error } = await supabase
-      .from("on_market_deals")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("scraped_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching deals:", error);
-    } else {
-      setDeals(data || []);
-    }
-    setLoading(false);
+  const handleAddDeal = () => {
+    if (!dealForm.companyName.trim()) { toast({ title: 'Name required', variant: 'destructive' }); return; }
+    store.addDeal({
+      id: genId(), ...dealForm, status: 'new', aiSummary: null,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    });
+    setDealForm(emptyDeal);
+    setShowAddDeal(false);
+    toast({ title: 'Deal added' });
   };
 
-  const handleScrape = async () => {
-    setScraping(true);
+  const handleAddSource = () => {
+    if (!sourceForm.name || !sourceForm.url) return;
+    store.addSource({
+      id: genId(), name: sourceForm.name, url: sourceForm.url,
+      enabled: true, isBuiltIn: false, lastScrapedAt: null,
+    });
+    setSourceForm({ name: '', url: '' });
+    setShowAddSource(false);
+    toast({ title: 'Source added' });
+  };
+
+  const handleAISummary = async (deal: OnMarketDeal) => {
+    if (!settings.aiApiKey) {
+      toast({ title: 'API key required', description: 'Set your AI API key in Settings.', variant: 'destructive' });
+      return;
+    }
+    setAiLoading(deal.id);
     try {
-      const { data, error } = await supabase.functions.invoke("scrape-deals", {
-        body: { sources: ["bizbuysell", "daltons"] },
-      });
+      const prompt = `Provide a brief M&A analysis of this business listing:
+Company: ${deal.companyName}
+Industry: ${deal.industry}
+Location: ${deal.location}
+Asking Price: ${deal.askingPrice ? `£${deal.askingPrice.toLocaleString()}` : 'Not specified'}
+Revenue: ${deal.revenue ? `£${deal.revenue.toLocaleString()}` : 'Not specified'}
+Description: ${deal.description}
 
-      if (error) throw error;
+Provide: 1) Key strengths 2) Risks 3) Valuation assessment 4) Recommendation. Keep concise (200 words max).`;
 
-      toast({
-        title: "Scraping complete",
-        description: `Found ${data?.deals_found || 0} new deals.`,
-      });
-      
-      await fetchDeals();
-    } catch (error) {
-      console.error("Scrape error:", error);
-      toast({
-        title: "Scraping failed",
-        description: "Could not fetch new deals. Try again later.",
-        variant: "destructive",
-      });
-    } finally {
-      setScraping(false);
+      const isOpenAI = settings.aiProvider === 'openai';
+      const url = isOpenAI ? 'https://api.openai.com/v1/chat/completions' : 'https://api.anthropic.com/v1/messages';
+      const body = isOpenAI
+        ? { model: 'gpt-4o-mini', messages: [{ role: 'user', content: prompt }], temperature: 0.3 }
+        : { model: 'claude-sonnet-4-20250514', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (isOpenAI) headers['Authorization'] = `Bearer ${settings.aiApiKey}`;
+      else { headers['x-api-key'] = settings.aiApiKey; headers['anthropic-version'] = '2023-06-01'; }
+
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      const data = await res.json();
+      const text = isOpenAI ? data.choices?.[0]?.message?.content : data.content?.[0]?.text;
+      if (text) {
+        store.updateDeal(deal.id, { aiSummary: text });
+        toast({ title: 'AI Summary generated' });
+      }
+    } catch {
+      toast({ title: 'AI Summary failed', variant: 'destructive' });
     }
+    setAiLoading(null);
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
+  const filtered = store.deals
+    .filter((d) => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return d.companyName.toLowerCase().includes(q) || d.industry.toLowerCase().includes(q) || d.location.toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      const va = (a as unknown as Record<string, unknown>)[sortField];
+      const vb = (b as unknown as Record<string, unknown>)[sortField];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (va < vb) return sortDir === 'desc' ? 1 : -1;
+      if (va > vb) return sortDir === 'desc' ? -1 : 1;
+      return 0;
+    });
+
+  const handleSort = (field: string) => {
+    if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortField(field); setSortDir('asc'); }
   };
 
-  // Get unique industries for filter
-  const industries = [...new Set(deals.map(d => d.industry).filter(Boolean))];
+  const formatPrice = (v: number | null) => v == null ? '—' : `£${v.toLocaleString()}`;
 
-  const filteredDeals = deals.filter((deal) => {
-    const matchesSearch = 
-      deal.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (deal.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
-    const matchesIndustry = industryFilter === "all" || deal.industry === industryFilter;
-    return matchesSearch && matchesIndustry;
-  });
-
-  // Show loading while checking role
-  if (authLoading || checkingRole) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </Layout>
-    );
-  }
-
-  // Show Coming Soon for non-admins (including authenticated non-admin users)
-  if (!isAdmin) {
-    return (
-      <Layout>
-        {/* Hero */}
-        <section className="section-padding border-b border-border">
-          <div className="container-narrow">
-            <div className="max-w-2xl mx-auto text-center">
-              <span className="badge-coming-soon mb-6 inline-block">Coming Soon</span>
-              <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-                Marketplace
-              </h1>
-              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-                AI-powered discovery of companies currently available for sale in the United Kingdom.
-              </p>
-              <p className="mt-6 text-sm text-muted-foreground">
-                This feature is currently in development. Check back soon.
-              </p>
-              <div className="mt-8">
-                <Button asChild className="gap-2">
-                  <Link to="/list-company">
-                    <Plus className="h-4 w-4" />
-                    List Your Company
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* What This Is / Is Not */}
-        <section className="section-padding">
-          <div className="container-wide">
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="card-elevated p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Layers className="h-5 w-5 text-foreground" />
-                  <h2 className="text-lg font-semibold text-foreground">What This Is</h2>
-                </div>
-                <ul className="space-y-3">
-                  {whatItIs.map((item) => (
-                    <li key={item} className="flex items-start gap-3 text-sm text-muted-foreground">
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0 mt-2"></span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="card-elevated p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <XCircle className="h-5 w-5 text-muted-foreground" />
-                  <h2 className="text-lg font-semibold text-foreground">What This Is Not</h2>
-                </div>
-                <ul className="space-y-3">
-                  {whatItIsNot.map((item) => (
-                    <li key={item} className="flex items-start gap-3 text-sm text-muted-foreground">
-                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground flex-shrink-0 mt-2"></span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* How It Works */}
-        <section className="section-padding bg-secondary/30 border-y border-border">
-          <div className="container-wide">
-            <div className="text-center mb-10">
-              <h2 className="text-2xl font-semibold text-foreground">How It Works</h2>
-              <p className="mt-2 text-muted-foreground">
-                AI-powered aggregation of UK business-for-sale listings.
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="card-elevated p-6 text-center">
-                <Globe className="h-8 w-8 mx-auto text-primary mb-4" />
-                <h3 className="font-semibold text-foreground mb-2">Scrape</h3>
-                <p className="text-sm text-muted-foreground">
-                  Fetch listings from BizBuySell, BusinessesForSale, Daltons, and RightBiz.
-                </p>
-              </div>
-              <div className="card-elevated p-6 text-center">
-                <Sparkles className="h-8 w-8 mx-auto text-primary mb-4" />
-                <h3 className="font-semibold text-foreground mb-2">Analyze</h3>
-                <p className="text-sm text-muted-foreground">
-                  AI extracts company details, financials, and generates investment summaries.
-                </p>
-              </div>
-              <div className="card-elevated p-6 text-center">
-                <Filter className="h-8 w-8 mx-auto text-primary mb-4" />
-                <h3 className="font-semibold text-foreground mb-2">Filter</h3>
-                <p className="text-sm text-muted-foreground">
-                  Search and filter based on your acquisition criteria.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </Layout>
-    );
-  }
-
-  // Authenticated dashboard view
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <DashboardHeader 
-        email={profile?.email || user?.email} 
-        onSignOut={handleSignOut} 
-      />
-
-      {/* Sub-header */}
-      <div className="border-b border-border bg-secondary/30">
-        <div className="container-wide py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <AppLayout>
+      <div className="flex-1 overflow-auto">
+        <div className="bg-white px-8 py-6" style={{ borderBottom: '1px solid #E3E8EE' }}>
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-foreground">
-                Marketplace
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Discover companies currently available for sale across the UK
-              </p>
+              <h1 className="text-xl font-bold" style={{ color: '#0A2540' }}>On-Market Deals</h1>
+              <p className="text-sm mt-1" style={{ color: '#596880' }}>{store.deals.length} deals tracked</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" asChild className="gap-2">
-                <Link to="/admin/listings">
-                  <ClipboardList className="h-4 w-4" />
-                  Approvals
-                </Link>
-              </Button>
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Settings className="h-4 w-4" />
-                    Sources
-                  </Button>
-                </SheetTrigger>
-                <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-                  <SheetHeader>
-                    <SheetTitle>Scrape Sources</SheetTitle>
-                    <SheetDescription>
-                      Configure which websites to scrape for business listings
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="mt-6">
-                    <ScrapeSourcesManager />
-                  </div>
-                </SheetContent>
-              </Sheet>
-              <Button onClick={handleScrape} disabled={scraping} className="gap-2">
-                {scraping ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {scraping ? "Scraping..." : "Scrape New Deals"}
-              </Button>
-            </div>
+            <Button onClick={() => setShowAddDeal(true)} className="gap-2" style={{ background: '#635BFF', color: 'white' }}>
+              <Plus className="h-4 w-4" /> Add Deal
+            </Button>
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 py-6">
-        <div className="container-wide">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : deals.length === 0 ? (
-            <div className="card-elevated p-12 text-center">
-              <Database className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="font-medium text-foreground mb-1">No deals scraped yet</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-                Click "Scrape New Deals" to fetch the latest on-market opportunities from UK business-for-sale listings.
-              </p>
-              <Button onClick={handleScrape} disabled={scraping} className="gap-2">
-                {scraping ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {scraping ? "Scraping..." : "Scrape New Deals"}
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Filters */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search deals..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                <Select value={industryFilter} onValueChange={setIndustryFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filter by industry" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All industries</SelectItem>
-                    {industries.map((ind) => (
-                      <SelectItem key={ind} value={ind!}>
-                        {ind}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="p-8">
+          <Tabs defaultValue="deals">
+            <TabsList>
+              <TabsTrigger value="deals">Deals</TabsTrigger>
+              <TabsTrigger value="sources">Sources</TabsTrigger>
+            </TabsList>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="card-elevated p-4">
-                  <p className="text-2xl font-semibold text-foreground">{deals.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Deals</p>
-                </div>
-                <div className="card-elevated p-4">
-                  <p className="text-2xl font-semibold text-foreground">{industries.length}</p>
-                  <p className="text-sm text-muted-foreground">Industries</p>
-                </div>
-                <div className="card-elevated p-4">
-                  <p className="text-2xl font-semibold text-foreground">
-                    {[...new Set(deals.map(d => d.source))].length}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Sources</p>
-                </div>
-                <div className="card-elevated p-4">
-                  <p className="text-2xl font-semibold text-foreground">{filteredDeals.length}</p>
-                  <p className="text-sm text-muted-foreground">Matching Filters</p>
+            <TabsContent value="deals" className="mt-4">
+              <div className="mb-4">
+                <div className="relative max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#9CA3AF' }} />
+                  <Input placeholder="Search deals..." value={search} onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 text-sm" style={{ borderColor: '#E3E8EE' }} />
                 </div>
               </div>
 
-              {/* Deals Table */}
-              <div className="card-elevated overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse" style={{ tableLayout: "fixed", minWidth: "1100px" }}>
-                    <colgroup>
-                      {columnWidths.map((w, i) => (
-                        <col key={i} style={{ width: w }} />
-                      ))}
-                    </colgroup>
+              {filtered.length === 0 ? (
+                <Card className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                  <CardContent className="p-8 text-center">
+                    <Globe className="h-10 w-10 mx-auto mb-3" style={{ color: '#E3E8EE' }} />
+                    <p className="text-sm" style={{ color: '#596880' }}>No on-market deals yet. Add one manually or configure sources.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                  <table className="w-full bg-white">
                     <thead>
-                      <tr className="bg-secondary/40 border-b border-border">
-                        {columns.map((col, i) => (
-                          <th
-                            key={col.key}
-                            className={`relative h-11 px-3 text-left font-semibold text-foreground select-none ${col.align === "right" ? "text-right" : ""}`}
-                          >
-                            {col.label}
-                            {i < columns.length - 1 && (
-                              <div
-                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/40 active:bg-primary/60 transition-colors z-10"
-                                onMouseDown={(e) => handleResizeStart(e, i)}
-                              />
-                            )}
+                      <tr style={{ background: '#FAFBFC', borderBottom: '1px solid #E3E8EE' }}>
+                        {[
+                          { key: 'companyName', label: 'Company' },
+                          { key: 'industry', label: 'Industry' },
+                          { key: 'location', label: 'Location' },
+                          { key: 'askingPrice', label: 'Asking Price' },
+                          { key: 'revenue', label: 'Revenue' },
+                          { key: 'status', label: 'Status' },
+                        ].map((col) => (
+                          <th key={col.key} className="px-4 py-3 text-left">
+                            <button onClick={() => handleSort(col.key)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider"
+                              style={{ color: '#596880' }}>
+                              {col.label} <ArrowUpDown className="h-3 w-3" />
+                            </button>
                           </th>
                         ))}
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: '#596880' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredDeals.map((deal) => (
-                        <tr
-                          key={deal.id}
-                          className="border-b border-border cursor-pointer hover:bg-secondary/30 transition-colors"
-                          onClick={() => window.open(deal.source_url, "_blank", "noopener,noreferrer")}
-                        >
-                          <td className="px-3 py-3 font-medium text-foreground">
-                            <div className="flex flex-col gap-0.5 overflow-hidden">
-                              <span className="truncate">{deal.company_name}</span>
-                              {deal.description && (
-                                <span className="text-xs text-muted-foreground truncate font-normal">
-                                  {deal.description}
-                                </span>
+                      {filtered.map((deal) => (
+                        <tr key={deal.id} style={{ borderBottom: '1px solid #E3E8EE' }} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-3">
+                            <div>
+                              <p className="text-sm font-medium" style={{ color: '#0A2540' }}>{deal.companyName}</p>
+                              {deal.sourceUrl && (
+                                <a href={deal.sourceUrl} target="_blank" rel="noopener noreferrer"
+                                  className="text-xs inline-flex items-center gap-1 hover:underline" style={{ color: '#635BFF' }}>
+                                  {deal.sourceName} <ExternalLink className="h-3 w-3" />
+                                </a>
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-3">
-                            {deal.industry ? (
-                              <span className="inline-block text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded truncate max-w-full">
-                                {deal.industry}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
+                          <td className="px-4 py-3 text-sm" style={{ color: '#596880' }}>{deal.industry || '—'}</td>
+                          <td className="px-4 py-3 text-sm" style={{ color: '#596880' }}>{deal.location || '—'}</td>
+                          <td className="px-4 py-3 text-sm font-medium" style={{ color: '#0A2540' }}>{formatPrice(deal.askingPrice)}</td>
+                          <td className="px-4 py-3 text-sm" style={{ color: '#0A2540' }}>{formatPrice(deal.revenue)}</td>
+                          <td className="px-4 py-3">
+                            <Select value={deal.status} onValueChange={(v) => store.updateDeal(deal.id, { status: v as OnMarketDeal['status'] })}>
+                              <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {['new', 'reviewed', 'contacted', 'passed'].map((s) => (
+                                  <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
-                          <td className="px-3 py-3 text-muted-foreground truncate">
-                            {deal.location || <span className="text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-3 text-right font-medium text-foreground whitespace-nowrap">
-                            {deal.asking_price || <span className="text-muted-foreground text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-3 text-right text-foreground whitespace-nowrap">
-                            {deal.revenue || <span className="text-muted-foreground text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-3 text-right text-foreground whitespace-nowrap">
-                            {deal.profit || <span className="text-muted-foreground text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-3 text-right text-foreground whitespace-nowrap">
-                            {deal.net_assets || <span className="text-muted-foreground text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-3 text-xs text-muted-foreground truncate">
-                            {deal.source}
-                          </td>
-                          <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                            {new Date(deal.scraped_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
-                          </td>
-                          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                            <a
-                              href={deal.source_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => handleAISummary(deal)}
+                                disabled={aiLoading === deal.id}>
+                                {aiLoading === deal.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => store.deleteDeal(deal.id)}>
+                                <Trash2 className="h-3.5 w-3.5" style={{ color: '#EF4444' }} />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              )}
+
+              {/* AI Summaries */}
+              {filtered.filter((d) => d.aiSummary).length > 0 && (
+                <div className="mt-6 space-y-3">
+                  <h3 className="text-sm font-semibold" style={{ color: '#0A2540' }}>AI Summaries</h3>
+                  {filtered.filter((d) => d.aiSummary).map((deal) => (
+                    <Card key={deal.id} className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                      <CardContent className="p-4">
+                        <h4 className="text-sm font-medium mb-2" style={{ color: '#0A2540' }}>{deal.companyName}</h4>
+                        <p className="text-sm whitespace-pre-wrap" style={{ color: '#596880' }}>{deal.aiSummary}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sources" className="mt-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-semibold" style={{ color: '#0A2540' }}>Scrape Sources</h3>
+                <Button variant="outline" size="sm" onClick={() => setShowAddSource(true)} style={{ borderColor: '#E3E8EE' }}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Source
+                </Button>
               </div>
-            </>
-          )}
+              <div className="space-y-3">
+                {store.sources.map((source) => (
+                  <Card key={source.id} className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Globe className="h-5 w-5" style={{ color: '#635BFF' }} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-medium" style={{ color: '#0A2540' }}>{source.name}</h4>
+                            {source.isBuiltIn && <Badge variant="secondary" className="text-xs">Coming Soon</Badge>}
+                          </div>
+                          <a href={source.url} target="_blank" rel="noopener noreferrer"
+                            className="text-xs hover:underline" style={{ color: '#635BFF' }}>
+                            {source.url}
+                          </a>
+                        </div>
+                      </div>
+                      {!source.isBuiltIn && (
+                        <Button variant="ghost" size="sm" onClick={() => store.deleteSource(source.id)}>
+                          <Trash2 className="h-3.5 w-3.5" style={{ color: '#EF4444' }} />
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
-      </main>
-    </div>
+
+        {/* Add Deal Dialog */}
+        <Dialog open={showAddDeal} onOpenChange={setShowAddDeal}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Add On-Market Deal</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div><Label>Company Name *</Label><Input value={dealForm.companyName} onChange={(e) => setDealForm({ ...dealForm, companyName: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Industry</Label><Input value={dealForm.industry} onChange={(e) => setDealForm({ ...dealForm, industry: e.target.value })} /></div>
+                <div><Label>Location</Label><Input value={dealForm.location} onChange={(e) => setDealForm({ ...dealForm, location: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Asking Price (£)</Label><Input type="number" value={dealForm.askingPrice ?? ''} onChange={(e) => setDealForm({ ...dealForm, askingPrice: e.target.value ? Number(e.target.value) : null })} /></div>
+                <div><Label>Revenue (£)</Label><Input type="number" value={dealForm.revenue ?? ''} onChange={(e) => setDealForm({ ...dealForm, revenue: e.target.value ? Number(e.target.value) : null })} /></div>
+              </div>
+              <div><Label>Source URL</Label><Input value={dealForm.sourceUrl} onChange={(e) => setDealForm({ ...dealForm, sourceUrl: e.target.value })} /></div>
+              <div><Label>Description</Label><Textarea value={dealForm.description} onChange={(e) => setDealForm({ ...dealForm, description: e.target.value })} rows={3} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddDeal(false)}>Cancel</Button>
+              <Button onClick={handleAddDeal} style={{ background: '#635BFF', color: 'white' }}>Add Deal</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Source Dialog */}
+        <Dialog open={showAddSource} onOpenChange={setShowAddSource}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Add Scrape Source</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div><Label>Name</Label><Input value={sourceForm.name} onChange={(e) => setSourceForm({ ...sourceForm, name: e.target.value })} /></div>
+              <div><Label>URL</Label><Input value={sourceForm.url} onChange={(e) => setSourceForm({ ...sourceForm, url: e.target.value })} /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddSource(false)}>Cancel</Button>
+              <Button onClick={handleAddSource} style={{ background: '#635BFF', color: 'white' }}>Add Source</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AppLayout>
   );
 }

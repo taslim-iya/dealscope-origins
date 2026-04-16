@@ -1,606 +1,371 @@
-import { useState, useEffect } from "react";
-import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
-  Building2,
-  MapPin,
-  Factory,
-  Globe,
-  Hash,
-  FileText,
-  Banknote,
-  TrendingUp,
-  Wallet,
-  BarChart3,
-  LogOut,
-  Loader2,
-  ExternalLink,
-  Check,
-  Mail,
-  Pencil,
-  Save,
-  X,
-  Trash2,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { OutreachPanel } from "@/components/outreach/OutreachPanel";
+  ArrowLeft, Building2, MapPin, Factory, Globe, Banknote, TrendingUp, Wallet, BarChart3,
+  Users, Tag, Loader2, ExternalLink, Sparkles, Calendar, Linkedin, Twitter, Phone,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { getDealFlowCompanies, type DealFlowCompany } from '@/lib/dealflowService';
+import { enrichCompany, type EnrichedData } from '@/lib/enrichmentService';
+import { updateCompany } from '@/lib/companyDb';
+import AppLayout from '@/components/layout/AppLayout';
 
-interface Company {
-  id: string;
-  company_name: string;
-  geography: string | null;
-  industry: string | null;
-  revenue_band: string | null;
-  asset_band: string | null;
-  status: string | null;
-  description_of_activities: string | null;
-  companies_house_number: string | null;
-  website: string | null;
-  address: string | null;
-  revenue: number | null;
-  profit_before_tax: number | null;
-  net_assets: number | null;
-  total_assets: number | null;
-  mandate_id: string;
-  created_at: string;
-}
-
-interface Mandate {
-  id: string;
-  name: string;
-}
-
-const statusOptions = [
-  { value: "new", label: "New", className: "bg-blue-50 text-blue-700 border-blue-200" },
-  { value: "reviewed", label: "Reviewed", className: "bg-slate-100 text-slate-600 border-slate-200" },
-  { value: "shortlisted", label: "Shortlisted", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-];
-
-const formatCurrency = (value: number | null): string => {
-  if (value === null) return "—";
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-    maximumFractionDigits: 0,
-  }).format(value);
+const formatCurrency = (value: number | null | undefined): string => {
+  if (value == null) return '—';
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
 };
+
+const statusColors: Record<string, string> = {
+  new: 'bg-blue-50 text-blue-700 border-blue-200',
+  reviewed: 'bg-slate-100 text-slate-600 border-slate-200',
+  shortlisted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  contacted: 'bg-amber-50 text-amber-700 border-amber-200',
+  qualified: 'bg-purple-50 text-purple-700 border-purple-200',
+  rejected: 'bg-red-50 text-red-700 border-red-200',
+};
+
+type ExtendedCompany = DealFlowCompany & { enriched_data?: EnrichedData };
 
 export default function CompanyDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const cameFromAdmin = document.referrer.includes('/admin') || location.state?.from === 'admin';
-  const { user, profile, loading: authLoading, signOut } = useAuth();
   const { toast } = useToast();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [mandate, setMandate] = useState<Mandate | null>(null);
+  const [company, setCompany] = useState<ExtendedCompany | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Company>>({});
-  const [saving, setSaving] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [enriching, setEnriching] = useState(false);
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsAdmin(!!data);
-    };
-    if (user) checkAdmin();
-  }, [user]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!id || !user) return;
-
-      const { data: companyData, error: companyError } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (companyError || !companyData) {
-        console.error("Error fetching company:", companyError);
-        navigate("/dashboard");
-        return;
+    (async () => {
+      const companies = await getDealFlowCompanies();
+      const found = companies.find((c) => c.id === id);
+      if (found) {
+        setCompany(found as ExtendedCompany);
       }
-
-      setCompany(companyData as Company);
-
-      const { data: mandateData } = await supabase
-        .from("mandates")
-        .select("id, name")
-        .eq("id", companyData.mandate_id)
-        .maybeSingle();
-
-      if (mandateData) {
-        setMandate(mandateData);
-      }
-
       setLoading(false);
-    };
+    })();
+  }, [id]);
 
-    if (user) {
-      fetchData();
-    }
-  }, [id, user, navigate]);
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
-  };
-
-  const handleStatusChange = async (newStatus: string) => {
+  const handleEnrich = async () => {
     if (!company) return;
-    setUpdatingStatus(true);
-    const { error } = await supabase
-      .from("companies")
-      .update({ status: newStatus })
-      .eq("id", company.id);
-
-    if (error) {
-      toast({ title: "Error updating status", description: error.message, variant: "destructive" });
-    } else {
-      setCompany({ ...company, status: newStatus });
-      toast({ title: "Status updated", description: `Company status changed to ${newStatus}` });
+    const domain = company.website?.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!domain) {
+      toast({ title: 'No website', description: 'Company needs a website to enrich.', variant: 'destructive' });
+      return;
     }
-    setUpdatingStatus(false);
-  };
-
-  const startEditing = () => {
-    if (!company) return;
-    setEditForm({
-      company_name: company.company_name,
-      industry: company.industry,
-      geography: company.geography,
-      website: company.website,
-      address: company.address,
-      description_of_activities: company.description_of_activities,
-      companies_house_number: company.companies_house_number,
-      revenue: company.revenue,
-      profit_before_tax: company.profit_before_tax,
-      net_assets: company.net_assets,
-      total_assets: company.total_assets,
-      revenue_band: company.revenue_band,
-      asset_band: company.asset_band,
-    });
-    setIsEditing(true);
-  };
-
-  const cancelEditing = () => {
-    setIsEditing(false);
-    setEditForm({});
-  };
-
-  const handleSave = async () => {
-    if (!company) return;
-    setSaving(true);
-
-    const { error } = await supabase
-      .from("companies")
-      .update({
-        company_name: editForm.company_name,
-        industry: editForm.industry || null,
-        geography: editForm.geography || null,
-        website: editForm.website || null,
-        address: editForm.address || null,
-        description_of_activities: editForm.description_of_activities || null,
-        companies_house_number: editForm.companies_house_number || null,
-        revenue: editForm.revenue ?? null,
-        profit_before_tax: editForm.profit_before_tax ?? null,
-        net_assets: editForm.net_assets ?? null,
-        total_assets: editForm.total_assets ?? null,
-        revenue_band: editForm.revenue_band || null,
-        asset_band: editForm.asset_band || null,
-      })
-      .eq("id", company.id);
-
-    if (error) {
-      toast({ title: "Error saving", description: error.message, variant: "destructive" });
-    } else {
-      setCompany({ ...company, ...editForm } as Company);
-      setIsEditing(false);
-      toast({ title: "Company updated", description: "Changes saved successfully." });
+    setEnriching(true);
+    try {
+      const data = await enrichCompany(domain);
+      if (data) {
+        await updateCompany(company.id, { enriched_data: data });
+        setCompany({ ...company, enriched_data: data });
+        toast({ title: 'Enriched', description: 'Company data has been enriched successfully.' });
+      } else {
+        toast({ title: 'No data found', description: 'Could not find enrichment data for this domain.', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Enrichment failed', description: 'An error occurred.', variant: 'destructive' });
     }
-    setSaving(false);
+    setEnriching(false);
   };
 
-  const handleDelete = async () => {
-    if (!company) return;
-    const { error } = await supabase.from("companies").delete().eq("id", company.id);
-    if (error) {
-      toast({ title: "Error deleting", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Company deleted", description: `${company.company_name} has been removed.` });
-      navigate(-1);
-    }
-  };
-
-  const updateField = (field: keyof Company, value: string | number | null) => {
-    setEditForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <AppLayout>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#635BFF' }} />
+        </div>
+      </AppLayout>
     );
   }
 
   if (!company) {
-    return null;
+    return (
+      <AppLayout>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <p style={{ color: '#596880' }}>Company not found.</p>
+          <Button onClick={() => navigate('/companies')} variant="outline">Back to Companies</Button>
+        </div>
+      </AppLayout>
+    );
   }
 
-  return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="container-wide h-16 flex items-center justify-between">
-          <Link to="/" className="text-lg font-semibold text-foreground">
-            DealScope
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              {profile?.email || user?.email}
-            </span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Log out
-            </Button>
-          </div>
-        </div>
-      </header>
+  const enriched = company.enriched_data;
 
-      {/* Sub-header */}
-      <div className="border-b border-border bg-secondary/30">
-        <div className="container-wide py-4">
+  return (
+    <AppLayout>
+      <div className="flex-1 overflow-auto">
+        {/* Sub-header */}
+        <div className="bg-white px-8 py-6" style={{ borderBottom: '1px solid #E3E8EE' }}>
           <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
+            onClick={() => navigate('/companies')}
+            className="inline-flex items-center gap-2 text-sm mb-4 transition-colors"
+            style={{ color: '#596880' }}
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            Back to Companies
           </button>
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-primary/10">
-                <Building2 className="h-6 w-6 text-primary" />
+              <div className="p-3 rounded-xl" style={{ background: '#F0EEFF' }}>
+                <Building2 className="h-6 w-6" style={{ color: '#635BFF' }} />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-foreground">
-                  {company.company_name}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  {company.industry || "Industry not specified"}
-                </p>
+                <h1 className="text-xl font-bold" style={{ color: '#0A2540' }}>{company.company_name}</h1>
+                <div className="flex items-center gap-3 mt-1">
+                  {company.geography && (
+                    <span className="inline-flex items-center gap-1 text-sm" style={{ color: '#596880' }}>
+                      <MapPin className="h-3.5 w-3.5" /> {company.geography}
+                    </span>
+                  )}
+                  {company.industry && (
+                    <span className="inline-flex items-center gap-1 text-sm" style={{ color: '#596880' }}>
+                      <Factory className="h-3.5 w-3.5" /> {company.industry}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {isAdmin && !isEditing && (
-                <>
-                  <Button variant="outline" size="sm" onClick={startEditing}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete {company.company_name}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently remove this company and all associated data. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          onClick={handleDelete}
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </>
-              )}
-              {isEditing && (
-                <>
-                  <Button variant="outline" size="sm" onClick={cancelEditing} disabled={saving}>
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSave} disabled={saving}>
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                    Save
-                  </Button>
-                </>
-              )}
-              {!isEditing && (
-                <Select
-                  value={company.status || "new"}
-                  onValueChange={handleStatusChange}
-                  disabled={updatingStatus}
-                >
-                  <SelectTrigger className={`w-[140px] ${statusOptions.find(s => s.value === (company.status || "new"))?.className || ""}`}>
-                    {updatingStatus ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <SelectValue />
-                    )}
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border border-border">
-                    {statusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-2">
-                          {company.status === option.value && (
-                            <Check className="h-3 w-3" />
-                          )}
-                          {option.label}
+
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className={statusColors[company.status] || statusColors.new}>
+                {company.status || 'new'}
+              </Badge>
+              <Button
+                onClick={handleEnrich}
+                disabled={enriching}
+                className="gap-2"
+                style={{ background: '#635BFF', color: 'white' }}
+              >
+                {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Enrich
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left column */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Financial overview */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {[
+                  { label: 'Revenue', value: formatCurrency(company.revenue), icon: Banknote, color: '#635BFF' },
+                  { label: 'P/L Before Tax', value: formatCurrency(company.profit_before_tax), icon: TrendingUp, color: '#10B981' },
+                  { label: 'Total Assets', value: formatCurrency(company.total_assets), icon: BarChart3, color: '#0EA5E9' },
+                  { label: 'Equity', value: formatCurrency(company.net_assets), icon: Wallet, color: '#F59E0B' },
+                  { label: 'Employees', value: company.employees?.toString() || '—', icon: Users, color: '#A259FF' },
+                ].map((stat) => {
+                  const Icon = stat.icon;
+                  return (
+                    <Card key={stat.label} className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Icon className="h-4 w-4" style={{ color: stat.color }} />
+                          <span className="text-xs font-medium" style={{ color: '#596880' }}>{stat.label}</span>
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        <p className="text-lg font-bold" style={{ color: '#0A2540' }}>{stat.value}</p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* Description */}
+              {(company.description_of_activities || company.description) && (
+                <Card className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold" style={{ color: '#0A2540' }}>Description</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm leading-relaxed" style={{ color: '#596880' }}>
+                      {company.description_of_activities || company.description}
+                    </p>
+                  </CardContent>
+                </Card>
               )}
+
+              {/* Enriched data */}
+              {enriched && (
+                <Card className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: '#0A2540' }}>
+                      <Sparkles className="h-4 w-4" style={{ color: '#635BFF' }} />
+                      Enriched Data
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {enriched.short_description && (
+                      <p className="text-sm" style={{ color: '#596880' }}>{enriched.short_description}</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      {enriched.founded_year && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" style={{ color: '#596880' }} />
+                          <span style={{ color: '#596880' }}>Founded: <strong style={{ color: '#0A2540' }}>{enriched.founded_year}</strong></span>
+                        </div>
+                      )}
+                      {enriched.estimated_num_employees && (
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4" style={{ color: '#596880' }} />
+                          <span style={{ color: '#596880' }}>Employees: <strong style={{ color: '#0A2540' }}>{enriched.estimated_num_employees.toLocaleString()}</strong></span>
+                        </div>
+                      )}
+                      {enriched.annual_revenue && (
+                        <div className="flex items-center gap-2">
+                          <Banknote className="h-4 w-4" style={{ color: '#596880' }} />
+                          <span style={{ color: '#596880' }}>Revenue: <strong style={{ color: '#0A2540' }}>{formatCurrency(enriched.annual_revenue)}</strong></span>
+                        </div>
+                      )}
+                      {enriched.total_funding && (
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" style={{ color: '#596880' }} />
+                          <span style={{ color: '#596880' }}>Total Funding: <strong style={{ color: '#0A2540' }}>{formatCurrency(enriched.total_funding)}</strong></span>
+                        </div>
+                      )}
+                      {enriched.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4" style={{ color: '#596880' }} />
+                          <span style={{ color: '#0A2540' }}>{enriched.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-3">
+                      {enriched.linkedin_url && (
+                        <a href={enriched.linkedin_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm hover:underline" style={{ color: '#635BFF' }}>
+                          <Linkedin className="h-4 w-4" /> LinkedIn
+                        </a>
+                      )}
+                      {enriched.twitter_url && (
+                        <a href={enriched.twitter_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm hover:underline" style={{ color: '#635BFF' }}>
+                          <Twitter className="h-4 w-4" /> Twitter
+                        </a>
+                      )}
+                    </div>
+                    {enriched.technologies.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold mb-2" style={{ color: '#596880' }}>Tech Stack</p>
+                        <div className="flex flex-wrap gap-1">
+                          {enriched.technologies.slice(0, 20).map((t) => (
+                            <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Right column */}
+            <div className="space-y-6">
+              {/* Directors */}
+              <Card className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold" style={{ color: '#0A2540' }}>Directors</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {company.directors && company.directors.length > 0 ? (
+                    <div className="space-y-3">
+                      {company.directors.map((d, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#635BFF' }}>
+                            {d.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium" style={{ color: '#0A2540' }}>{d.name}</p>
+                            <p className="text-xs" style={{ color: '#596880' }}>{d.title}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : company.director_name ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#635BFF' }}>
+                        {company.director_name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: '#0A2540' }}>{company.director_name}</p>
+                        {company.director_title && <p className="text-xs" style={{ color: '#596880' }}>{company.director_title}</p>}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: '#596880' }}>No director information available.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Website */}
+              {company.website && (
+                <Card className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold" style={{ color: '#0A2540' }}>Website</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <a
+                      href={company.website.startsWith('http') ? company.website : `https://${company.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm hover:underline"
+                      style={{ color: '#635BFF' }}
+                    >
+                      <Globe className="h-4 w-4" />
+                      {company.website}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Tags */}
+              {company.tags && company.tags.length > 0 && (
+                <Card className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2" style={{ color: '#0A2540' }}>
+                      <Tag className="h-4 w-4" /> Tags
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1">
+                      {company.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Additional Info */}
+              <Card className="rounded-xl" style={{ border: '1px solid #E3E8EE' }}>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold" style={{ color: '#0A2540' }}>Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  {company.year_incorporated && (
+                    <div className="flex justify-between">
+                      <span style={{ color: '#596880' }}>Year Inc.</span>
+                      <span style={{ color: '#0A2540' }}>{company.year_incorporated}</span>
+                    </div>
+                  )}
+                  {company.nace && (
+                    <div className="flex justify-between">
+                      <span style={{ color: '#596880' }}>NACE</span>
+                      <span style={{ color: '#0A2540' }}>{company.nace}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Main Content */}
-      <main className="flex-1 py-6">
-        <div className="container-wide">
-          <Tabs defaultValue="details" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="details" className="gap-2">
-                <FileText className="h-4 w-4" />
-                Details
-              </TabsTrigger>
-              <TabsTrigger value="outreach" className="gap-2">
-                <Mail className="h-4 w-4" />
-                Outreach
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="details">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Company Info Card */}
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Company Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {isEditing ? (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground mb-2 block">Description of Activities</label>
-                        <Textarea
-                          value={editForm.description_of_activities || ""}
-                          onChange={(e) => updateField("description_of_activities", e.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                    ) : company.description_of_activities ? (
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Description of Activities</h4>
-                        <p className="text-foreground">{company.description_of_activities}</p>
-                      </div>
-                    ) : null}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {isEditing ? (
-                        <>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1 block">Company Name</label>
-                            <Input value={editForm.company_name || ""} onChange={(e) => updateField("company_name", e.target.value)} />
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1 block">Companies House Number</label>
-                            <Input value={editForm.companies_house_number || ""} onChange={(e) => updateField("companies_house_number", e.target.value)} />
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1 block">Website</label>
-                            <Input value={editForm.website || ""} onChange={(e) => updateField("website", e.target.value)} />
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1 block">Industry</label>
-                            <Input value={editForm.industry || ""} onChange={(e) => updateField("industry", e.target.value)} />
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1 block">Location / Geography</label>
-                            <Input value={editForm.geography || ""} onChange={(e) => updateField("geography", e.target.value)} />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="text-sm font-medium text-muted-foreground mb-1 block">Registered Address</label>
-                            <Input value={editForm.address || ""} onChange={(e) => updateField("address", e.target.value)} />
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-start gap-3">
-                            <Hash className="h-4 w-4 text-muted-foreground mt-1" />
-                            <div>
-                              <p className="text-sm text-muted-foreground">Companies House Number</p>
-                              <p className="font-medium text-foreground">{company.companies_house_number || "—"}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-3">
-                            <Globe className="h-4 w-4 text-muted-foreground mt-1" />
-                            <div>
-                              <p className="text-sm text-muted-foreground">Website</p>
-                              {company.website ? (
-                                <a href={company.website.startsWith("http") ? company.website : `https://${company.website}`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline inline-flex items-center gap-1">
-                                  {company.website}
-                                  <ExternalLink className="h-3 w-3" />
-                                </a>
-                              ) : (
-                                <p className="font-medium text-foreground">—</p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-3">
-                            <Factory className="h-4 w-4 text-muted-foreground mt-1" />
-                            <div>
-                              <p className="text-sm text-muted-foreground">Industry</p>
-                              <p className="font-medium text-foreground">{company.industry || "—"}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-3">
-                            <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                            <div>
-                              <p className="text-sm text-muted-foreground">Location</p>
-                              <p className="font-medium text-foreground">{company.geography || "—"}</p>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {!isEditing && company.address && (
-                      <div className="flex items-start gap-3 pt-2 border-t border-border">
-                        <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Registered Address</p>
-                          <p className="font-medium text-foreground">{company.address}</p>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Financials Card */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" />
-                      Financials
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {isEditing ? (
-                      <>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground mb-1 block">Revenue (£)</label>
-                          <Input type="number" value={editForm.revenue ?? ""} onChange={(e) => updateField("revenue", e.target.value ? Number(e.target.value) : null)} />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground mb-1 block">Revenue Band</label>
-                          <Input value={editForm.revenue_band || ""} onChange={(e) => updateField("revenue_band", e.target.value)} />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground mb-1 block">Profit Before Tax (£)</label>
-                          <Input type="number" value={editForm.profit_before_tax ?? ""} onChange={(e) => updateField("profit_before_tax", e.target.value ? Number(e.target.value) : null)} />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground mb-1 block">Net Assets (£)</label>
-                          <Input type="number" value={editForm.net_assets ?? ""} onChange={(e) => updateField("net_assets", e.target.value ? Number(e.target.value) : null)} />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground mb-1 block">Total Assets (£)</label>
-                          <Input type="number" value={editForm.total_assets ?? ""} onChange={(e) => updateField("total_assets", e.target.value ? Number(e.target.value) : null)} />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground mb-1 block">Asset Band</label>
-                          <Input value={editForm.asset_band || ""} onChange={(e) => updateField("asset_band", e.target.value)} />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-start gap-3">
-                          <Banknote className="h-4 w-4 text-muted-foreground mt-1" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Revenue</p>
-                            <p className="font-semibold text-foreground">{formatCurrency(company.revenue)}</p>
-                            {company.revenue_band && <p className="text-xs text-muted-foreground">Band: {company.revenue_band}</p>}
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <TrendingUp className="h-4 w-4 text-muted-foreground mt-1" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Profit Before Tax</p>
-                            <p className="font-semibold text-foreground">{formatCurrency(company.profit_before_tax)}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <Wallet className="h-4 w-4 text-muted-foreground mt-1" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Net Assets</p>
-                            <p className="font-semibold text-foreground">{formatCurrency(company.net_assets)}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <BarChart3 className="h-4 w-4 text-muted-foreground mt-1" />
-                          <div>
-                            <p className="text-sm text-muted-foreground">Total Assets</p>
-                            <p className="font-semibold text-foreground">{formatCurrency(company.total_assets)}</p>
-                            {company.asset_band && <p className="text-xs text-muted-foreground">Band: {company.asset_band}</p>}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="outreach">
-              <OutreachPanel
-                companyId={company.id}
-                mandateId={company.mandate_id}
-                companyName={company.company_name}
-              />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="py-6 border-t border-border">
-        <p className="text-xs text-muted-foreground text-center">
-          DealScope provides buyer-mandated research and origination support only.
-        </p>
-      </footer>
-    </div>
+    </AppLayout>
   );
 }
