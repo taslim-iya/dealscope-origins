@@ -1,20 +1,21 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Globe, RefreshCw, ExternalLink, Search, ArrowUpDown, Filter,
-  Building2, MapPin, PoundSterling, Clock, ChevronDown, Star, Eye,
+  Globe, RefreshCw, ExternalLink, Search, ArrowUpDown, Filter, X,
+  Building2, MapPin, PoundSterling, ChevronDown, ChevronRight, ChevronUp,
+  Star, Eye, MessageSquare, Send, Loader2, Download, Columns,
+  ArrowDown, ArrowUp, SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { useOnMarketStore } from '@/lib/onMarketStore';
 import AppLayout from '@/components/layout/AppLayout';
 
-interface ScrapedListing {
+// ─── Types ───
+interface Listing {
   id: string;
   title: string;
   price: string | null;
@@ -31,65 +32,254 @@ interface ListingsData {
   total: number;
   sources: Record<string, number>;
   scrapedAt: string;
-  listings: ScrapedListing[];
+  listings: Listing[];
 }
 
-const SOURCE_COLORS: Record<string, string> = {
-  hiltonsmythe: '#1E3A5F',
-  smergers: '#6366F1',
-  flippa: '#059669',
-  intelligent: '#D97706',
-  daltons: '#2563EB',
-  rightbiz: '#10B981',
-  businessesforsale: '#F97316',
-  nationwidebusinesses: '#374151',
-  bizdaq: '#0EA5E9',
+// ─── Column config (Excel-like) ───
+type ColKey = 'title' | 'price' | 'location' | 'industry' | 'source';
+interface ColDef { key: ColKey; label: string; width: number; sortable: boolean; }
+
+const DEFAULT_COLS: ColDef[] = [
+  { key: 'title', label: 'Business Name', width: 320, sortable: true },
+  { key: 'price', label: 'Asking Price', width: 140, sortable: true },
+  { key: 'location', label: 'Location', width: 160, sortable: true },
+  { key: 'industry', label: 'Sector', width: 160, sortable: true },
+  { key: 'source', label: 'Source', width: 150, sortable: true },
+];
+
+const SOURCE_COLOR: Record<string, string> = {
+  hiltonsmythe: '#1E3A5F', smergers: '#6366F1', flippa: '#059669',
+  intelligent: '#D97706', daltons: '#2563EB', rightbiz: '#10B981',
+  businessesforsale: '#F97316', sovereign: '#7C3AED', hornblower: '#0E7490',
+  sellingmybusiness: '#DC2626', cogogo: '#EA580C', mybizdaq: '#0EA5E9',
+  christie: '#B45309', nationwidebusinesses: '#374151',
 };
 
-const SOURCE_INFO: Record<string, { name: string; emoji: string; url: string; estimate: string }> = {
-  rightbiz: { name: 'Rightbiz', emoji: '🟢', url: 'https://www.rightbiz.co.uk/businesses-for-sale', estimate: '10,000+' },
-  daltons: { name: 'Daltons Business', emoji: '🔵', url: 'https://www.daltonsbusiness.com/buy/business-for-sale', estimate: '20,000+' },
-  businessesforsale: { name: 'BusinessesForSale.com', emoji: '🟠', url: 'https://uk.businessesforsale.com/uk/search/businesses-for-sale', estimate: '13,600+' },
-  businesssale: { name: 'Business Sale Report', emoji: '🟣', url: 'https://www.business-sale.com/businesses-for-sale', estimate: '5,000+' },
-  dealopportunities: { name: 'Deal Opportunities', emoji: '🟡', url: 'https://www.dealopportunities.co.uk', estimate: '500+' },
-  bizdaq: { name: 'Bizdaq', emoji: '🔷', url: 'https://www.bizdaq.com/businesses-for-sale', estimate: '3,000+' },
-  hiltonsmythe: { name: 'Hilton Smythe', emoji: '🏛️', url: 'https://www.hiltonsmythe.com/businesses-for-sale/', estimate: '200+' },
-  smergers: { name: 'SMERGERS', emoji: '🤖', url: 'https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/', estimate: '400+' },
-  flippa: { name: 'Flippa', emoji: '💻', url: 'https://flippa.com/online-businesses-united-kingdom', estimate: '1,000+' },
-  intelligent: { name: 'Intelligent', emoji: '🧠', url: 'https://www.intelligent.co.uk/businesses-for-sale', estimate: '286' },
-  nationwidebusinesses: { name: 'Nationwide Businesses', emoji: '🏴', url: 'https://www.nationwidebusinesses.co.uk', estimate: '500+' },
-  businessbuyers: { name: 'Business Buyers', emoji: '🤝', url: 'https://www.businessbuyers.co.uk', estimate: '300+' },
-  transworld: { name: 'Transworld', emoji: '🌍', url: 'https://www.tworld.com/locations/united-kingdom/', estimate: '100+' },
-  buymybiz: { name: 'BuyMyBiz', emoji: '💼', url: 'https://www.buymybiz.co.uk', estimate: '150+' },
-  bizquest: { name: 'BizQuest', emoji: '🔍', url: 'https://www.bizquest.com/businesses-for-sale-in-united-kingdom/', estimate: '200+' },
-  sovereign: { name: 'Sovereign BT', emoji: '👑', url: 'https://www.sovereignbt.co.uk/businesses-for-sale/', estimate: '50+' },
-  hornblower: { name: 'Hornblower', emoji: '📯', url: 'https://hornblower-businesses.co.uk/businesses-for-sale/', estimate: '30+' },
-  sellingmybusiness: { name: 'SellingMyBusiness', emoji: '🏷️', url: 'https://www.sellingmybusiness.co.uk/buy-a-business', estimate: '800+' },
-  cogogo: { name: 'Cogogo', emoji: '🚀', url: 'https://letscogogo.com/businesses-for-sale/', estimate: '200+' },
-  mybizdaq: { name: 'MyBizdaq', emoji: '📊', url: 'https://www.mybizdaq.com/businesses-for-sale', estimate: '1,155' },
-  christie: { name: 'Christie & Co', emoji: '🏨', url: 'https://www.christie.com/businesses-for-sale/', estimate: '500+' },
-  blacksbrokers: { name: 'Blacks Brokers', emoji: '⬛', url: 'https://www.blacksbrokers.com/', estimate: '100+' },
-};
+function parsePrice(p: string | null): number {
+  if (!p) return 0;
+  const clean = p.replace(/[^0-9.]/g, '');
+  return parseFloat(clean) || 0;
+}
 
+// ─── Endole-style Detail Panel ───
+function DetailPanel({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+  return (
+    <div style={{
+      position: 'fixed', top: 0, right: 0, bottom: 0, width: 480,
+      background: '#fff', borderLeft: '1px solid #E3E8EE',
+      boxShadow: '-4px 0 24px rgba(0,0,0,0.08)', zIndex: 50,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '16px 20px', borderBottom: '1px solid #E3E8EE',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: '#1A1F36' }}>Company Details</h3>
+        <button onClick={onClose} style={{ color: '#697386', cursor: 'pointer', background: 'none', border: 'none' }}>
+          <X size={18} />
+        </button>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+        {/* Header */}
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1A1F36', marginBottom: 4, lineHeight: 1.3 }}>
+            {listing.title}
+          </h2>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            <Badge variant="outline" style={{
+              borderColor: SOURCE_COLOR[listing.sourceId] || '#697386',
+              color: SOURCE_COLOR[listing.sourceId] || '#697386',
+              fontSize: 11,
+            }}>
+              {listing.source}
+            </Badge>
+            {listing.location && (
+              <span style={{ fontSize: 12, color: '#697386', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <MapPin size={12} />{listing.location}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Key Metrics - Endole style */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24,
+        }}>
+          {[
+            { label: 'Asking Price', value: listing.price || 'POA', color: '#1A1F36' },
+            { label: 'Revenue', value: listing.revenue || '—', color: '#697386' },
+            { label: 'Location', value: listing.location || '—', color: '#697386' },
+            { label: 'Sector', value: listing.industry || '—', color: '#697386' },
+          ].map(m => (
+            <div key={m.label} style={{
+              padding: '12px 14px', background: '#F6F9FC', borderRadius: 8,
+              border: '1px solid #E3E8EE',
+            }}>
+              <p style={{ fontSize: 11, color: '#697386', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {m.label}
+              </p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: m.color, marginTop: 4 }}>{m.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Source info */}
+        <div style={{
+          padding: '14px 16px', background: '#F6F9FC', borderRadius: 8,
+          border: '1px solid #E3E8EE', marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 11, color: '#697386', fontWeight: 500, textTransform: 'uppercase', marginBottom: 8 }}>
+            Listed On
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1F36' }}>{listing.source}</span>
+            <a href={listing.url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 12, color: '#635BFF', fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+              View Original <ExternalLink size={12} />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer actions */}
+      <div style={{
+        padding: '14px 20px', borderTop: '1px solid #E3E8EE',
+        display: 'flex', gap: 8,
+      }}>
+        <a href={listing.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1 }}>
+          <Button className="w-full" style={{ background: '#635BFF', color: '#fff', border: 'none' }}>
+            <ExternalLink size={14} /> View on {listing.source}
+          </Button>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Chat Panel ───
+function AIChatPanel({ listings, onFilter }: { listings: Listing[]; onFilter: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleSend = () => {
+    if (!input.trim()) return;
+    const query = input.trim().toLowerCase();
+    setMessages(prev => [...prev, { role: 'user', text: input }]);
+    setInput('');
+    setLoading(true);
+
+    // Local NLP search — no API needed
+    setTimeout(() => {
+      const terms = query.split(/\s+/);
+      const matches = listings.filter(l => {
+        const text = `${l.title} ${l.location} ${l.industry} ${l.source} ${l.price || ''}`.toLowerCase();
+        return terms.every(t => text.includes(t));
+      });
+
+      let response = '';
+      if (matches.length === 0) {
+        response = `No businesses found matching "${input}". Try broader terms like "restaurant", "Manchester", or "under £100,000".`;
+      } else if (matches.length <= 5) {
+        response = `Found ${matches.length} matching businesses:\n\n${matches.map(m => `• **${m.title}** — ${m.price || 'POA'} (${m.source})`).join('\n')}`;
+        onFilter(matches.map(m => m.id));
+      } else {
+        response = `Found ${matches.length} businesses matching "${input}". Showing them in the table now.`;
+        onFilter(matches.map(m => m.id));
+      }
+
+      setMessages(prev => [...prev, { role: 'ai', text: response }]);
+      setLoading(false);
+    }, 300);
+  };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{
+        position: 'fixed', bottom: 20, right: 20, width: 48, height: 48,
+        borderRadius: '50%', background: '#635BFF', color: '#fff', border: 'none',
+        boxShadow: '0 4px 12px rgba(99,91,255,0.3)', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 40,
+      }}>
+        <MessageSquare size={20} />
+      </button>
+    );
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 20, right: 20, width: 380, height: 480,
+      background: '#fff', borderRadius: 12, border: '1px solid #E3E8EE',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.12)', zIndex: 40,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '12px 16px', background: '#635BFF', color: '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Search by AI</span>
+        <button onClick={() => setOpen(false)} style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <X size={16} />
+        </button>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+        {messages.length === 0 && (
+          <p style={{ fontSize: 12, color: '#697386', textAlign: 'center', marginTop: 20 }}>
+            Try: "restaurants in Manchester under £100k" or "tech businesses" or "freehold"
+          </p>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} style={{
+            marginBottom: 8, padding: '8px 12px', borderRadius: 8,
+            background: m.role === 'user' ? '#635BFF' : '#F6F9FC',
+            color: m.role === 'user' ? '#fff' : '#1A1F36',
+            fontSize: 13, lineHeight: 1.5, maxWidth: '85%',
+            marginLeft: m.role === 'user' ? 'auto' : 0,
+            whiteSpace: 'pre-wrap',
+          }}>
+            {m.text}
+          </div>
+        ))}
+        {loading && <Loader2 size={16} className="animate-spin" style={{ color: '#697386', margin: '8px auto' }} />}
+      </div>
+      <div style={{ padding: '8px 12px', borderTop: '1px solid #E3E8EE', display: 'flex', gap: 8 }}>
+        <Input value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          placeholder="Search businesses..."
+          style={{ fontSize: 13 }} />
+        <Button size="icon" onClick={handleSend} style={{ background: '#635BFF', color: '#fff', flexShrink: 0 }}>
+          <Send size={14} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ───
 export default function OnMarket() {
   const { toast } = useToast();
-  const [listings, setListings] = useState<ScrapedListing[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [scrapedAt, setScrapedAt] = useState<string | null>(null);
   const [sourceCounts, setSourceCounts] = useState<Record<string, number>>({});
+
+  // Table state
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
-  const [sortField, setSortField] = useState<'title' | 'source' | 'price'>('source');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortCol, setSortCol] = useState<ColKey>('source');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem('ds-saved-listings') || '[]'));
-    } catch { return new Set(); }
+    try { return new Set(JSON.parse(localStorage.getItem('ds-saved-listings') || '[]')); }
+    catch { return new Set(); }
   });
+  const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
+  const [cols, setCols] = useState(DEFAULT_COLS);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
 
-  useEffect(() => {
-    loadListings();
-  }, []);
+  useEffect(() => { loadListings(); }, []);
 
   const loadListings = async () => {
     setLoading(true);
@@ -101,232 +291,300 @@ export default function OnMarket() {
         setScrapedAt(data.scrapedAt);
         setSourceCounts(data.sources);
       }
-    } catch (e) {
-      toast({ title: 'Failed to load listings', variant: 'destructive' });
-    }
+    } catch { toast({ title: 'Failed to load', variant: 'destructive' }); }
     setLoading(false);
   };
 
   const toggleSave = (id: string) => {
-    setSavedIds((prev) => {
+    setSavedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       localStorage.setItem('ds-saved-listings', JSON.stringify([...next]));
       return next;
     });
   };
 
+  const handleSort = (col: ColKey) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  // Deduplicate by normalized title
+  const deduped = useMemo(() => {
+    const seen = new Map<string, Listing>();
+    for (const l of listings) {
+      const key = l.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40);
+      if (!seen.has(key)) seen.set(key, l);
+    }
+    return [...seen.values()];
+  }, [listings]);
+
   const filtered = useMemo(() => {
-    let items = [...listings];
+    let items = [...deduped];
     if (search) {
       const q = search.toLowerCase();
-      items = items.filter(
-        (l) => l.title.toLowerCase().includes(q) || l.location.toLowerCase().includes(q) || l.industry.toLowerCase().includes(q)
+      items = items.filter(l =>
+        `${l.title} ${l.location} ${l.industry} ${l.source} ${l.price || ''}`.toLowerCase().includes(q)
       );
     }
-    if (sourceFilter !== 'all') {
-      items = items.filter((l) => l.sourceId === sourceFilter);
-    }
+    if (sourceFilter !== 'all') items = items.filter(l => l.sourceId === sourceFilter);
+    if (filteredIds) items = items.filter(l => filteredIds.includes(l.id));
+
     items.sort((a, b) => {
       let cmp = 0;
-      if (sortField === 'title') cmp = a.title.localeCompare(b.title);
-      else if (sortField === 'source') cmp = a.source.localeCompare(b.source);
-      else if (sortField === 'price') {
-        const pa = parseFloat((a.price || '0').replace(/[^0-9.]/g, '')) || 0;
-        const pb = parseFloat((b.price || '0').replace(/[^0-9.]/g, '')) || 0;
-        cmp = pa - pb;
-      }
+      if (sortCol === 'price') cmp = parsePrice(a.price) - parsePrice(b.price);
+      else cmp = (a[sortCol] || '').localeCompare(b[sortCol] || '');
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return items;
-  }, [listings, search, sourceFilter, sortField, sortDir]);
+  }, [deduped, search, sourceFilter, sortCol, sortDir, filteredIds]);
 
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const activeSources = Object.entries(sourceCounts).filter(([_, c]) => c > 0);
+  const selectedListing = selectedId ? listings.find(l => l.id === selectedId) : null;
+
+  const exportCSV = () => {
+    const header = 'Name,Price,Location,Sector,Source,URL';
+    const rows = filtered.map(l => `"${l.title}","${l.price || ''}","${l.location}","${l.industry}","${l.source}","${l.url}"`);
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'dealscope-listings.csv'; a.click();
+  };
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-6xl mx-auto">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold">On-Market Businesses</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Live listings scraped from UK business marketplace sites.
-            {scrapedAt && (
-              <> Last updated: {new Date(scrapedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+      <div style={{ maxWidth: 'none' }}>
+        {/* Header bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 16, flexWrap: 'wrap', gap: 12,
+        }}>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: '#1A1F36' }}>On-Market</h1>
+            <p style={{ fontSize: 12, color: '#697386', marginTop: 2 }}>
+              {filtered.length} businesses from {activeSources.length} sources
+              {scrapedAt && <> · Updated {new Date(scrapedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</>}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {filteredIds && (
+              <Button variant="outline" size="sm" onClick={() => setFilteredIds(null)} style={{ fontSize: 12 }}>
+                <X size={12} /> Clear AI filter
+              </Button>
             )}
-          </p>
-        </div>
-
-        {/* Source Cards */}
-        <div>
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <Globe className="h-4 w-4" /> Sources ({Object.keys(SOURCE_INFO).length} UK marketplaces)
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-            {Object.entries(SOURCE_INFO).map(([id, info]) => {
-              const count = sourceCounts[id] || 0;
-              const hasListings = count > 0;
-              return (
-                <a key={id} href={info.url} target="_blank" rel="noopener noreferrer"
-                  className={`group relative rounded-lg border p-3 transition-all hover:shadow-md ${
-                    hasListings ? 'bg-card border-border' : 'bg-muted/30 border-dashed border-muted-foreground/20'
-                  }`}>
-                  <div className="flex items-start justify-between mb-1">
-                    <span className="text-lg">{info.emoji}</span>
-                    <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <p className="text-xs font-semibold truncate">{info.name}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {hasListings ? (
-                      <span className="text-green-600 font-medium">{count} scraped</span>
-                    ) : (
-                      <span>{info.estimate} est. (CF blocked)</span>
-                    )}
-                  </p>
-                </a>
-              );
-            })}
+            <Button variant="outline" size="sm" onClick={exportCSV} style={{ fontSize: 12 }}>
+              <Download size={12} /> Export CSV
+            </Button>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search listings..." value={search} onChange={(e) => setSearch(e.target.value)}
-              className="pl-9" />
+        {/* Filters bar */}
+        <div style={{
+          display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center',
+          padding: '8px 12px', background: '#fff', borderRadius: 8,
+          border: '1px solid #E3E8EE',
+        }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#697386' }} />
+            <Input placeholder="Filter businesses..." value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
+              style={{ paddingLeft: 32, fontSize: 13, height: 34, border: '1px solid #E3E8EE' }} />
           </div>
-          <Select value={sourceFilter} onValueChange={setSourceFilter}>
-            <SelectTrigger className="w-[180px]">
-              <Filter className="h-3.5 w-3.5 mr-2" />
+          <Select value={sourceFilter} onValueChange={v => { setSourceFilter(v); setPage(0); }}>
+            <SelectTrigger style={{ width: 170, height: 34, fontSize: 12 }}>
+              <Filter size={12} className="mr-1" />
               <SelectValue placeholder="All Sources" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Sources</SelectItem>
+              <SelectItem value="all">All Sources ({deduped.length})</SelectItem>
               {activeSources.map(([id, count]) => (
-                <SelectItem key={id} value={id}>
-                  {SOURCE_INFO[id]?.emoji || '📋'} {SOURCE_INFO[id]?.name || id} ({count})
-                </SelectItem>
+                <SelectItem key={id} value={id}>{id} ({count})</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={sortField} onValueChange={(v) => setSortField(v as any)}>
-            <SelectTrigger className="w-[140px]">
-              <ArrowUpDown className="h-3.5 w-3.5 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="source">Source</SelectItem>
-              <SelectItem value="title">Name</SelectItem>
-              <SelectItem value="price">Price</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="ghost" size="icon" onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
-            <ChevronDown className={`h-4 w-4 transition-transform ${sortDir === 'asc' ? 'rotate-180' : ''}`} />
-          </Button>
         </div>
 
-        {/* Stats */}
-        <div className="flex gap-4 text-sm">
-          <span className="text-muted-foreground">{filtered.length} listing{filtered.length !== 1 ? 's' : ''}</span>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-muted-foreground">{savedIds.size} saved</span>
-        </div>
+        {/* Excel-like table */}
+        <div style={{
+          background: '#fff', borderRadius: 8, border: '1px solid #E3E8EE',
+          overflow: 'hidden',
+        }}>
+          {loading ? (
+            <div style={{ padding: 60, textAlign: 'center' }}>
+              <RefreshCw size={20} className="animate-spin" style={{ color: '#697386', margin: '0 auto' }} />
+            </div>
+          ) : (
+            <>
+              {/* Table header */}
+              <div style={{
+                display: 'flex', borderBottom: '2px solid #E3E8EE',
+                background: '#F6F9FC', userSelect: 'none',
+              }}>
+                <div style={{ width: 36, flexShrink: 0, padding: '8px 4px', textAlign: 'center' }}>
+                  <Star size={12} style={{ color: '#C4C9D2' }} />
+                </div>
+                {cols.map(col => (
+                  <div key={col.key} onClick={() => col.sortable && handleSort(col.key)}
+                    style={{
+                      width: col.width, flexShrink: 0, padding: '8px 12px',
+                      fontSize: 11, fontWeight: 600, color: '#697386',
+                      textTransform: 'uppercase', letterSpacing: '0.04em',
+                      cursor: col.sortable ? 'pointer' : 'default',
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      borderRight: '1px solid #E3E8EE',
+                    }}>
+                    {col.label}
+                    {sortCol === col.key && (
+                      sortDir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />
+                    )}
+                  </div>
+                ))}
+                <div style={{ width: 60, flexShrink: 0, padding: '8px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#697386' }}>
+                  Link
+                </div>
+              </div>
 
-        {/* Listings */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">
-            <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p className="text-lg font-medium">No listings found</p>
-            <p className="text-sm mt-1">Try adjusting your filters</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filtered.map((listing) => (
-              <Card key={listing.id} className="group hover:shadow-md transition-all">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    {/* Source badge */}
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-                      style={{ background: `${SOURCE_COLORS[listing.sourceId] || '#374151'}15` }}>
-                      {SOURCE_INFO[listing.sourceId]?.emoji || '📋'}
+              {/* Table rows */}
+              {paged.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#697386' }}>
+                  <Building2 size={24} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
+                  <p style={{ fontSize: 13, fontWeight: 500 }}>No businesses found</p>
+                </div>
+              ) : (
+                paged.map((listing, i) => (
+                  <div key={listing.id}
+                    onClick={() => setSelectedId(listing.id === selectedId ? null : listing.id)}
+                    style={{
+                      display: 'flex', borderBottom: '1px solid #E3E8EE',
+                      cursor: 'pointer', transition: 'background 0.1s',
+                      background: selectedId === listing.id ? '#F0F0FF' : i % 2 === 0 ? '#fff' : '#FAFBFC',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#F0F4FF')}
+                    onMouseLeave={e => (e.currentTarget.style.background = selectedId === listing.id ? '#F0F0FF' : i % 2 === 0 ? '#fff' : '#FAFBFC')}
+                  >
+                    {/* Star */}
+                    <div style={{ width: 36, flexShrink: 0, padding: '8px 4px', textAlign: 'center' }}
+                      onClick={e => { e.stopPropagation(); toggleSave(listing.id); }}>
+                      <Star size={13} style={{
+                        color: savedIds.has(listing.id) ? '#EAB308' : '#D1D5DB',
+                        fill: savedIds.has(listing.id) ? '#EAB308' : 'none',
+                        cursor: 'pointer',
+                      }} />
                     </div>
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-semibold text-sm leading-tight">{listing.title}</h3>
-                          <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                            <Badge variant="outline" className="text-[10px] py-0"
-                              style={{ borderColor: SOURCE_COLORS[listing.sourceId] || '#374151', color: SOURCE_COLORS[listing.sourceId] || '#374151' }}>
-                              {listing.source}
-                            </Badge>
-                            {listing.location && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />{listing.location}
-                              </span>
-                            )}
-                            {listing.industry && (
-                              <span className="text-xs text-muted-foreground">{listing.industry}</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          {listing.price && (
-                            <p className="font-bold text-sm">{listing.price}</p>
-                          )}
-                          {(listing as any).revenue && (
-                            <p className="text-xs text-muted-foreground">Rev: {(listing as any).revenue}</p>
-                          )}
-                        </div>
-                      </div>
+                    {/* Title */}
+                    <div style={{
+                      width: cols[0].width, flexShrink: 0, padding: '8px 12px',
+                      fontSize: 13, fontWeight: 500, color: '#1A1F36',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      borderRight: '1px solid #F0F0F0',
+                    }}>
+                      {listing.title}
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-col gap-1 flex-shrink-0">
-                      <Button variant="ghost" size="icon" className="h-8 w-8"
-                        onClick={() => toggleSave(listing.id)}>
-                        <Star className={`h-4 w-4 ${savedIds.has(listing.id) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
-                      </Button>
-                      <a href={listing.url} target="_blank" rel="noopener noreferrer">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                        </Button>
+                    {/* Price */}
+                    <div style={{
+                      width: cols[1].width, flexShrink: 0, padding: '8px 12px',
+                      fontSize: 13, fontWeight: 600, color: listing.price ? '#1A1F36' : '#C4C9D2',
+                      fontFamily: 'JetBrains Mono, monospace',
+                      borderRight: '1px solid #F0F0F0',
+                    }}>
+                      {listing.price || '—'}
+                    </div>
+
+                    {/* Location */}
+                    <div style={{
+                      width: cols[2].width, flexShrink: 0, padding: '8px 12px',
+                      fontSize: 12, color: '#697386',
+                      borderRight: '1px solid #F0F0F0',
+                    }}>
+                      {listing.location || '—'}
+                    </div>
+
+                    {/* Industry */}
+                    <div style={{
+                      width: cols[3].width, flexShrink: 0, padding: '8px 12px',
+                      fontSize: 12, color: '#697386',
+                      borderRight: '1px solid #F0F0F0',
+                    }}>
+                      {listing.industry || '—'}
+                    </div>
+
+                    {/* Source */}
+                    <div style={{
+                      width: cols[4].width, flexShrink: 0, padding: '8px 12px',
+                      borderRight: '1px solid #F0F0F0',
+                    }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 4,
+                        background: `${SOURCE_COLOR[listing.sourceId] || '#697386'}10`,
+                        color: SOURCE_COLOR[listing.sourceId] || '#697386',
+                      }}>
+                        {listing.source}
+                      </span>
+                    </div>
+
+                    {/* External link */}
+                    <div style={{ width: 60, flexShrink: 0, padding: '8px 4px', textAlign: 'center' }}
+                      onClick={e => e.stopPropagation()}>
+                      <a href={listing.url} target="_blank" rel="noopener noreferrer"
+                        style={{ color: '#635BFF' }}>
+                        <ExternalLink size={14} />
                       </a>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                ))
+              )}
 
-        {/* Browse Sources CTA */}
-        <div className="rounded-lg border border-dashed p-6 text-center">
-          <h3 className="font-semibold mb-2">Browse Directly</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Some major sites block automated scraping. Visit them directly for the full catalogue.
-          </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            {Object.entries(SOURCE_INFO)
-              .filter(([id]) => !sourceCounts[id])
-              .map(([id, info]) => (
-                <a key={id} href={info.url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs gap-1.5">
-                    {info.emoji} {info.name}
-                    <ExternalLink className="h-3 w-3" />
-                  </Button>
-                </a>
-              ))}
-          </div>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 16px', borderTop: '1px solid #E3E8EE', background: '#F6F9FC',
+                }}>
+                  <span style={{ fontSize: 12, color: '#697386' }}>
+                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}
+                      style={{ fontSize: 11, height: 28 }}>Prev</Button>
+                    <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}
+                      style={{ fontSize: 11, height: 28 }}>Next</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Sources summary bar */}
+        <div style={{
+          display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12,
+          padding: '10px 12px', background: '#fff', borderRadius: 8,
+          border: '1px solid #E3E8EE',
+        }}>
+          <span style={{ fontSize: 11, color: '#697386', fontWeight: 500, marginRight: 8, lineHeight: '24px' }}>Sources:</span>
+          {Object.entries(sourceCounts).filter(([_, c]) => c > 0).sort((a, b) => b[1] - a[1]).map(([id, count]) => (
+            <button key={id} onClick={() => { setSourceFilter(sourceFilter === id ? 'all' : id); setPage(0); }}
+              style={{
+                padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 500,
+                border: `1px solid ${sourceFilter === id ? SOURCE_COLOR[id] || '#697386' : '#E3E8EE'}`,
+                background: sourceFilter === id ? `${SOURCE_COLOR[id] || '#697386'}10` : '#fff',
+                color: SOURCE_COLOR[id] || '#697386', cursor: 'pointer',
+              }}>
+              {id} ({count})
+            </button>
+          ))}
         </div>
       </div>
+
+      {/* Detail panel */}
+      {selectedListing && <DetailPanel listing={selectedListing} onClose={() => setSelectedId(null)} />}
+
+      {/* AI Chat */}
+      <AIChatPanel listings={deduped} onFilter={ids => { setFilteredIds(ids); setPage(0); }} />
     </AppLayout>
   );
 }
