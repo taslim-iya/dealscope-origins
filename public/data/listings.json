@@ -1,0 +1,271 @@
+{
+  "total": 23,
+  "sources": {
+    "hiltonsmythe": 6,
+    "smergers": 13,
+    "intelligent": 0,
+    "daltons": 0,
+    "flippa": 4,
+    "nationwidebusinesses": 1,
+    "rightbiz": 0,
+    "businessesforsale": 0,
+    "businesssale": 0,
+    "bizdaq": 0
+  },
+  "scrapedAt": "2026-04-16T22:29:40.626402Z",
+  "listings": [
+    {
+      "id": "91b08e24f8a8",
+      "title": "Electrical wholesaler and lighting supplier",
+      "price": "\u00a31",
+      "location": "",
+      "industry": "",
+      "source": "Hilton Smythe",
+      "sourceId": "hiltonsmythe",
+      "url": "https://hiltonsmythe.com/business-listing/electrical-wholesaler-and-lighting-supplier/#more-56723793",
+      "sourceUrl": "https://hiltonsmythe.com"
+    },
+    {
+      "id": "3f162c1facc6",
+      "title": "Award-Winning, Multi-Trade Plumbing, Heating and Renewable Contractor",
+      "price": "\u00a31",
+      "location": "",
+      "industry": "",
+      "source": "Hilton Smythe",
+      "sourceId": "hiltonsmythe",
+      "url": "https://hiltonsmythe.com/business-listing/electrical-wholesaler-and-lighting-supplier/",
+      "sourceUrl": "https://hiltonsmythe.com"
+    },
+    {
+      "id": "15bb1a7b76db",
+      "title": "Automation and control systems engineering company",
+      "price": "\u00a3359",
+      "location": "",
+      "industry": "",
+      "source": "Hilton Smythe",
+      "sourceId": "hiltonsmythe",
+      "url": "https://hiltonsmythe.com/business-listing/electrical-wholesaler-and-lighting-supplier/",
+      "sourceUrl": "https://hiltonsmythe.com"
+    },
+    {
+      "id": "abdbc0330911",
+      "title": "Artisan, viennoiserie bakery and retail/wholesale supplier",
+      "price": "\u00a3179",
+      "location": "",
+      "industry": "",
+      "source": "Hilton Smythe",
+      "sourceId": "hiltonsmythe",
+      "url": "https://hiltonsmythe.com/business-listing/award-winning-multi-trade-plumbing-heating-and-renewable-contractor/#more-56723700",
+      "sourceUrl": "https://hiltonsmythe.com"
+    },
+    {
+      "id": "ab141fa39444",
+      "title": "Bakery and retail/wholesale operation",
+      "price": "\u00a32",
+      "location": "",
+      "industry": "",
+      "source": "Hilton Smythe",
+      "sourceId": "hiltonsmythe",
+      "url": "https://hiltonsmythe.com/business-listing/award-winning-multi-trade-plumbing-heating-and-renewable-contractor/",
+      "sourceUrl": "https://hiltonsmythe.com"
+    },
+    {
+      "id": "a28bec992040",
+      "title": "Supported living and housing provider",
+      "price": "\u00a3249",
+      "location": "",
+      "industry": "",
+      "source": "Hilton Smythe",
+      "sourceId": "hiltonsmythe",
+      "url": "https://hiltonsmythe.com/business-listing/award-winning-multi-trade-plumbing-heating-and-renewable-contractor/",
+      "sourceUrl": "https://hiltonsmythe.com"
+    },
+    {
+      "id": "8c16ec78643e",
+      "title": "Newly Established Travel Agency for Sale in London, UK",
+      "price": "USD 800 K",
+      "location": "UK",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "0596bd421f7f",
+      "title": "Education Consultant for Sale in London, UK",
+      "price": "USD 470 K",
+      "location": "UK",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "e4b8af44619a",
+      "title": "Beauty Salon for Sale in Colchester, UK",
+      "price": "USD 470 K",
+      "location": "UK, Buy",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "87210d5090d5",
+      "title": "Newly Established Event Management Business Equity Stake For Sale in Gravesend, UK",
+      "price": "USD 14 M",
+      "location": "UK, Business",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "13a18366fd4e",
+      "title": "Sign Maker for Sale in London, UK",
+      "price": "GBP 120,000 ",
+      "location": "UK",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "a53ef4b04c31",
+      "title": "Restaurant for Sale in London, UK",
+      "price": "GBP 10,000.\r",
+      "location": "UK",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "dbcbd2983a07",
+      "title": "UPVC Windows Company Equity Stake For Sale in Chelmsford, UK",
+      "price": "GBP 10, ",
+      "location": "your",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "184690cb3118",
+      "title": "Yoga Studio for Sale in London, UK",
+      "price": "USD 10.8 ",
+      "location": "USA",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "4817755aed04",
+      "title": "Alcoholic Beverages Business for Sale in London, UK",
+      "price": "USD 10.8 ",
+      "location": "USA",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "258f36bcd5c6",
+      "title": "M&A Advisory Company for Sale in London, UK",
+      "price": "USD 70 K",
+      "location": "USA",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "3c012d7f568e",
+      "title": "Newly Established Bar for Sale in Norwich, UK",
+      "price": "USD 390 K",
+      "location": "USA",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "4ac888544fd5",
+      "title": "Profitable Health Food Store for Sale in London, UK",
+      "price": "GBP 10,000 ",
+      "location": "role",
+      "industry": "",
+      "source": "SMERGERS",
+      "sourceId": "smergers",
+      "url": "https://www.smergers.com/businesses-for-sale-and-investment-in-uk/c83b/",
+      "sourceUrl": "https://www.smergers.com"
+    },
+    {
+      "id": "09e0a3168ef2",
+      "title": "This business offers natural remedies and self-care products to help improve mental, physical, and emotional well-being.",
+      "price": "$621,594",
+      "location": "Online",
+      "industry": "Digital",
+      "source": "Flippa",
+      "sourceId": "flippa",
+      "url": "https://flippa.com/online-businesses-united-kingdom",
+      "sourceUrl": "https://flippa.com"
+    },
+    {
+      "id": "df92a67b5c71",
+      "title": "12+ Y/O Established Global Travel Connectivity Brand",
+      "price": "$545,241",
+      "location": "Online",
+      "industry": "Digital",
+      "source": "Flippa",
+      "sourceId": "flippa",
+      "url": "https://flippa.com/online-businesses-united-kingdom",
+      "sourceUrl": "https://flippa.com"
+    },
+    {
+      "id": "f171eeb01b53",
+      "title": "Trusted Automotive Support Lead Generation Marketplace Platform",
+      "price": "$1,500,000",
+      "location": "Online",
+      "industry": "Digital",
+      "source": "Flippa",
+      "sourceId": "flippa",
+      "url": "https://flippa.com/12296287",
+      "sourceUrl": "https://flippa.com"
+    },
+    {
+      "id": "5f262365a991",
+      "title": "Established, cult comedy greeting card publisher with slick dropship fulfilment and long-term lucrative royalty deals ",
+      "price": "$295,470",
+      "location": "Online",
+      "industry": "Digital",
+      "source": "Flippa",
+      "sourceId": "flippa",
+      "url": "https://flippa.com/12592361",
+      "sourceUrl": "https://flippa.com"
+    },
+    {
+      "id": "bccc6a1cea19",
+      "title": "Error 404 - Whoops something went wrong",
+      "price": null,
+      "location": "",
+      "industry": "",
+      "source": "Nationwide Businesses",
+      "sourceId": "nationwidebusinesses",
+      "url": "https://www.nationwidebusinesses.co.uk/businesses-for-sale",
+      "sourceUrl": "https://www.nationwidebusinesses.co.uk"
+    }
+  ]
+}
